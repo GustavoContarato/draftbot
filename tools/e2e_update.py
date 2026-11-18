@@ -5,6 +5,7 @@
 Copia o programa para uma pasta com acento, publica uma "versão 99.0.0" num servidor local,
 pede a atualização pela API e confere: arquivos trocados, programa reaberto, resultado "ok".
 """
+
 import hashlib, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
 import urllib.request, zipfile
 
@@ -82,5 +83,12 @@ try:
     assert not left, "arquivos antigos não foram apagados"
     print("E2E OK: atualização baixada, conferida, instalada e programa reaberto")
 finally:
+    try:
+        print("--- draftbot.log ---")
+        print(open(os.path.join(data, "draftbot.log"), encoding="utf-8", errors="replace").read()[-4000:])
+        print("--- pasta do programa ---", sorted(os.listdir(app))[:40])
+        print("--- tarefas ---", subprocess.run(["tasklist", "/FI", "IMAGENAME eq DraftBot.exe"], capture_output=True, text=True).stdout)
+    except Exception as e:
+        print("sem registro:", e)
     subprocess.run(["taskkill", "/F", "/IM", "DraftBot.exe"], capture_output=True)
     files.shutdown()

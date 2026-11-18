@@ -73,6 +73,8 @@ jobs:
           if ($p.ExitCode -ne 0 -or -not ($r -like "SELFTEST OK*executável*")) { exit 1 }
 
       - name: Testar a atualização automática com o .exe de verdade
+        env:
+          PYTHONUTF8: "1"
         run: python tools/e2e_update.py build\draftbot.dist
 
       - name: Montar o pacote .zip
