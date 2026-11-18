@@ -1038,73 +1038,60 @@ def prepare_update(info):
     raise RuntimeError("o pacote não tem o DraftBot.exe")
 
 
-def _backup(src, dst, bak):
-    """Guarda uma cópia dos arquivos atuais que a versão nova vai substituir."""
+OLD_SUFFIX = ".draftbot-antigo"
+
+
+def swap_files(src, dst):
+    """Põe os arquivos de `src` em `dst`. Os que já existem são renomeados para *.draftbot-antigo
+    (o Windows deixa renomear um .exe/.dll em uso, mas não sobrescrever). Se algo falhar, desfaz tudo.
+    Devolve a lista dos arquivos antigos, para apagar na próxima abertura."""
     import shutil
-    for root, _dirs, files in os.walk(src):
-        rel = os.path.relpath(root, src)
-        for fn in files:
-            cur = os.path.join(dst, rel, fn)
-            if os.path.isfile(cur):
-                os.makedirs(os.path.join(bak, rel), exist_ok=True)
-                shutil.copy2(cur, os.path.join(bak, rel, fn))
-
-
-# Os caminhos vão como argumentos (Unicode), não escritos no .cmd: assim pastas como
-# "Área de Trabalho" funcionam, sem depender da página de código do prompt.
-UPDATER_CMD = r"""@echo off
-setlocal
-set "SRC=%~1"
-set "DST=%~2"
-set "BAK=%~3"
-set "STATUS=%~4"
-set "PID=%~5"
-set "VER=%~6"
-set "LOG=%~4.log"
-set "SYS=%SystemRoot%\System32"
->> "%LOG%" echo inicio %DATE% %TIME% pid=%PID%
-set /a N=0
-:espera
-"%SYS%\tasklist.exe" /FI "PID eq %PID%" /NH 2>nul | "%SYS%\find.exe" " %PID% " >nul
-if errorlevel 1 goto copia
-set /a N+=1
-if %N% GEQ 60 goto copia
-"%SYS%\PING.EXE" -n 2 127.0.0.1 >nul
-goto espera
-:copia
->> "%LOG%" echo copiando apos %N% esperas %TIME%
-"%SYS%\Robocopy.exe" "%SRC%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-set "RC=%ERRORLEVEL%"
->> "%LOG%" echo robocopy %RC% %TIME%
-if %RC% GEQ 8 goto restaura
-> "%STATUS%" echo ok %VER%
-goto abre
-:restaura
-"%SYS%\Robocopy.exe" "%BAK%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-> "%STATUS%" echo falhou %VER%
-:abre
-start "" "%DST%\DraftBot.exe"
->> "%LOG%" echo fim %TIME%
-"""
-
-
-def updater_command(script, *args):
-    """Linha de comando para o cmd: com /s, só as aspas de fora são removidas, e cada caminho fica entre aspas."""
-    q = lambda x: '"' + str(x).replace('"', "") + '"'
-    return 'cmd /d /s /c "' + " ".join(q(x) for x in (script,) + args) + '"'
+    done, olds = [], []
+    try:
+        for root, _dirs, files in os.walk(src):
+            rel = os.path.relpath(root, src)
+            os.makedirs(os.path.join(dst, rel), exist_ok=True)
+            for fn in files:
+                new, cur = os.path.join(root, fn), os.path.normpath(os.path.join(dst, rel, fn))
+                old = None
+                if os.path.exists(cur):
+                    old = cur + OLD_SUFFIX
+                    if os.path.exists(old):
+                        try:
+                            os.remove(old)
+                        except OSError:
+                            old = cur + OLD_SUFFIX + str(int(time.time()))
+                    os.rename(cur, old)
+                    olds.append(old)
+                done.append((cur, old))
+                shutil.copy2(new, cur)
+    except Exception:
+        for cur, old in reversed(done):
+            try:
+                if os.path.exists(cur):
+                    os.remove(cur)
+                if old:
+                    os.rename(old, cur)
+            except OSError:
+                pass
+        raise
+    return olds
 
 
 def install_update_and_exit(new_dir, version):
-    """Escreve o script que troca os arquivos depois que este processo terminar, e encerra."""
-    bak = os.path.join(UPD_DIR, "anterior")
-    _backup(new_dir, APP_DIR, bak)
-    script = os.path.join(UPD_DIR, "aplicar.cmd")
-    with open(script, "w", encoding="ascii", newline="\r\n") as f:
-        f.write(UPDATER_CMD)
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
-    subprocess.Popen(updater_command(script, new_dir, APP_DIR, bak, os.path.join(UPD_DIR, "resultado.txt"),
-                                     os.getpid(), version), creationflags=flags, close_fds=True)
-    log(f"Instalando a versão {version}. O DraftBot vai reabrir sozinho.")
+    """Troca os arquivos, libera a porta, abre a versão nova e encerra esta."""
+    os.makedirs(UPD_DIR, exist_ok=True)
+    try:
+        olds = swap_files(new_dir, APP_DIR)
+        with open(os.path.join(DATA_DIR, "limpar_antigos.json"), "w", encoding="utf-8") as f:
+            json.dump(olds, f)
+        result = f"ok {version}"
+    except Exception as e:
+        log("Não consegui instalar a atualização:", e)
+        result = f"falhou {version}"
+    with open(os.path.join(DATA_DIR, "resultado_atualizacao.txt"), "w", encoding="utf-8") as f:
+        f.write(result)
+    log(f"Atualização: {result}. Reabrindo o DraftBot.")
     try:
         opgg.flush()
     except Exception:
@@ -1112,27 +1099,69 @@ def install_update_and_exit(new_dir, version):
     if Window.proc is not None and Window.proc.poll() is None:
         try:
             Window.proc.terminate()
+            Window.proc.wait(5)
         except Exception:
             pass
+    if SERVER["srv"] is not None:          # libera a porta antes de abrir a versão nova
+        try:
+            SERVER["srv"].shutdown()
+            SERVER["srv"].server_close()
+        except Exception:
+            pass
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen([os.path.join(APP_DIR, "DraftBot.exe"), "--apos-atualizar"], cwd=APP_DIR,
+                     creationflags=flags, close_fds=True)
     os._exit(0)
+
+
+SERVER = {"srv": None}
+
+
+def cleanup_after_update():
+    """Na abertura seguinte: apaga os arquivos antigos e a pasta temporária da atualização."""
+    import shutil
+    f = os.path.join(DATA_DIR, "limpar_antigos.json")
+    try:
+        with open(f, encoding="utf-8") as h:
+            olds = json.load(h)
+    except (OSError, ValueError):
+        olds = None
+    if olds is not None:
+        left = []
+        for o in olds:
+            if isinstance(o, str) and OLD_SUFFIX in os.path.basename(o):
+                try:
+                    os.remove(o)
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    left.append(o)
+        try:
+            if left:
+                with open(f, "w", encoding="utf-8") as h:
+                    json.dump(left, h)
+            else:
+                os.remove(f)
+        except OSError:
+            pass
+    shutil.rmtree(UPD_DIR, ignore_errors=True)
 
 
 _updated = {"read": False, "val": None}
 
 
 def update_result():
-    """Na primeira abertura depois de uma atualização: deu certo? (e limpa a pasta temporária)."""
+    """Na primeira abertura depois de uma atualização: deu certo?"""
     if not _updated["read"]:
         _updated["read"] = True
-        f = os.path.join(UPD_DIR, "resultado.txt")
+        f = os.path.join(DATA_DIR, "resultado_atualizacao.txt")
         try:
             with open(f, encoding="utf-8", errors="replace") as h:
                 parts = h.read().split()
+            os.remove(f)
             if parts:
                 _updated["val"] = {"result": parts[0], "version": parts[1] if len(parts) > 1 else ""}
                 log("Atualização:", " ".join(parts))
-            import shutil
-            shutil.rmtree(UPD_DIR, ignore_errors=True)
         except OSError:
             pass
     return _updated["val"]
@@ -1392,9 +1421,16 @@ def main():
         return
     url = f"http://127.0.0.1:{PORT}"
     show = "--no-browser" not in sys.argv
-    try:
-        srv = Server(("127.0.0.1", PORT), Handler)
-    except OSError:
+    srv = None
+    tries = 30 if "--apos-atualizar" in sys.argv else 1     # a versão anterior pode estar terminando de fechar
+    for i in range(tries):
+        try:
+            srv = Server(("127.0.0.1", PORT), Handler)
+            break
+        except OSError:
+            if i < tries - 1:
+                time.sleep(0.5)
+    if srv is None:
         if already_running():
             log("O DraftBot já está aberto. Abrindo a janela dele.")
             if show:
@@ -1402,7 +1438,9 @@ def main():
             return
         alert(f"A porta {PORT} está ocupada por outro programa. Feche-o e abra o DraftBot de novo.")
         return
+    SERVER["srv"] = srv
     log(f"DraftBot {VERSION} rodando em {url}.")
+    cleanup_after_update()
 
     def warm():
         try:

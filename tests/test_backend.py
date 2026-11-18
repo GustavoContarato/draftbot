@@ -394,54 +394,84 @@ class Atualizacao(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "caminho"):
             DB.prepare_update({"url": "https://x.com/a.zip", "sha256": self.sha})
 
-    def test_copia_de_seguranca_so_do_que_muda(self):
-        src, dst, bak = (os.path.join(self.dir, n) for n in ("src", "dst", "bak"))
+    def pastas(self):
+        src, dst = os.path.join(self.dir, "novo"), os.path.join(self.dir, "Área de Trabalho", "DraftBot")
         os.makedirs(os.path.join(src, "lib")); os.makedirs(dst)
-        for p, t in (("DraftBot.exe", "novo"), ("lib/x.dll", "novo")):
-            open(os.path.join(src, p), "w").write(t)
-        open(os.path.join(dst, "DraftBot.exe"), "w").write("velho")
-        open(os.path.join(dst, "config.json"), "w").write("{}")
-        DB._backup(src, dst, bak)
-        self.assertEqual(open(os.path.join(bak, "DraftBot.exe")).read(), "velho")
-        self.assertFalse(os.path.exists(os.path.join(bak, "config.json")))
-        self.assertFalse(os.path.exists(os.path.join(bak, "lib", "x.dll")))
+        for p, t in (("DraftBot.exe", "novo"), ("index.html", "nova"), ("lib/x.dll", "novo")):
+            with open(os.path.join(src, p), "w") as f:
+                f.write(t)
+        for p, t in (("DraftBot.exe", "velho"), ("index.html", "velha"), ("config.json", "{}")):
+            with open(os.path.join(dst, p), "w") as f:
+                f.write(t)
+        return src, dst
+
+    @staticmethod
+    def ler(*p):
+        with open(os.path.join(*p)) as f:
+            return f.read()
+
+    def test_troca_os_arquivos(self):
+        src, dst = self.pastas()
+        olds = DB.swap_files(src, dst)
+        self.assertEqual(self.ler(dst, "DraftBot.exe"), "novo")
+        self.assertEqual(self.ler(dst, "lib", "x.dll"), "novo")
+        self.assertEqual(self.ler(dst, "config.json"), "{}")                 # arquivos do usuário ficam
+        self.assertEqual(sorted(os.path.basename(o) for o in olds),
+                         ["DraftBot.exe.draftbot-antigo", "index.html.draftbot-antigo"])
+        with open(os.path.join(DB.DATA_DIR, "limpar_antigos.json"), "w") as f:
+            json.dump(olds, f)
+        DB.cleanup_after_update()                                            # na abertura seguinte
+        self.assertFalse(any(os.path.exists(o) for o in olds))
+
+    def test_desfaz_se_falhar_no_meio(self):
+        import shutil
+        src, dst = self.pastas()
+        real, n = shutil.copy2, [0]
+        def quebra(a, b):
+            n[0] += 1
+            if n[0] == 2:
+                raise OSError("disco cheio")
+            return real(a, b)
+        shutil.copy2 = quebra
+        try:
+            with self.assertRaises(OSError):
+                DB.swap_files(src, dst)
+        finally:
+            shutil.copy2 = real
+        self.assertEqual(self.ler(dst, "DraftBot.exe"), "velho")
+        self.assertEqual(self.ler(dst, "index.html"), "velha")
+        self.assertEqual(sorted(os.listdir(dst)), ["DraftBot.exe", "config.json", "index.html"] +
+                         (["lib"] if os.path.isdir(os.path.join(dst, "lib")) else []))
+
+    @unittest.skipUnless(os.name == "nt", "testa a troca de um .exe em uso no Windows")
+    def test_troca_exe_em_uso(self):
+        import shutil
+        src, dst = self.pastas()
+        sysdir = os.path.join(os.environ["SystemRoot"], "System32")
+        os.remove(os.path.join(dst, "DraftBot.exe"))
+        shutil.copy(os.path.join(sysdir, "PING.EXE"), os.path.join(dst, "DraftBot.exe"))
+        rodando = subprocess.Popen([os.path.join(dst, "DraftBot.exe"), "-n", "6", "127.0.0.1"],
+                                   stdout=subprocess.DEVNULL)
+        time.sleep(0.5)
+        try:
+            with self.assertRaises(OSError):                                   # sobrescrever direto não dá
+                with open(os.path.join(dst, "DraftBot.exe"), "wb") as f:
+                    f.write(b"x")
+            olds = DB.swap_files(src, dst)                                     # renomear e copiar dá
+            self.assertEqual(self.ler(dst, "DraftBot.exe"), "novo")
+            self.assertIsNone(rodando.poll())
+        finally:
+            rodando.kill(); rodando.wait()
+        with open(os.path.join(DB.DATA_DIR, "limpar_antigos.json"), "w") as f:
+            json.dump(olds, f)
+        DB.cleanup_after_update()
+        self.assertFalse(any(os.path.exists(o) for o in olds))
 
     def test_sem_versao_nova_nao_atualiza(self):
         st, r = api("/api/update", "POST", {}, {"X-DraftBot": "1"})
         self.assertFalse(r["ok"])
         st, r = api("/api/update", "POST", {})
         self.assertEqual(st, 403)
-
-    @unittest.skipUnless(os.name == "nt", "o instalador é um .cmd do Windows")
-    def test_instalador_troca_os_arquivos(self):
-        import shutil
-        base = os.path.join(self.dir, "Área de Trabalho", "Draft Bot")
-        src, dst, bak = os.path.join(self.dir, "novo"), base, os.path.join(self.dir, "anterior")
-        os.makedirs(os.path.join(src, "lib")); os.makedirs(dst)
-        hostname = shutil.which("hostname") or r"C:\Windows\System32\hostname.exe"
-        shutil.copy(hostname, os.path.join(src, "DraftBot.exe"))       # "abre" e sai na hora
-        open(os.path.join(src, "lib", "x.dll"), "w").write("novo")
-        open(os.path.join(dst, "config.json"), "w").write("{}")
-        status = os.path.join(self.dir, "resultado.txt")
-        script = os.path.join(self.dir, "aplicar.cmd")
-        with open(script, "w", encoding="ascii", newline="\r\n") as f:
-            f.write(DB.UPDATER_CMD)
-        espera = subprocess.Popen(["ping", "-n", "5", "127.0.0.1"], stdout=subprocess.DEVNULL)   # ~4 s
-        t0 = time.time()
-        flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS          # como o DraftBot lança
-        p = subprocess.Popen(DB.updater_command(script, src, dst, bak, status, espera.pid, "9.9.9"),
-                             creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-        try:
-            p.wait(timeout=90)
-        finally:
-            if os.path.exists(status + ".log"):
-                print("\n--- registro do instalador ---\n" + open(status + ".log").read())
-        self.assertGreater(time.time() - t0, 3.0)                        # esperou o programa antigo fechar
-        self.assertEqual(open(status).read().split(), ["ok", "9.9.9"])
-        self.assertEqual(open(os.path.join(dst, "lib", "x.dll")).read(), "novo")
-        self.assertTrue(os.path.exists(os.path.join(dst, "DraftBot.exe")))
-        self.assertTrue(os.path.exists(os.path.join(dst, "config.json")))   # arquivos do usuário ficam
 
 
 class AvisoDeVersao(unittest.TestCase):
