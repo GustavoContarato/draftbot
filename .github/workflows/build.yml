@@ -88,4 +88,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python tools/release_notes.py $env:VER | Out-File -Encoding utf8 notes.md
-          gh release create $env:GITHUB_REF_NAME $env:ZIP --title "DraftBot $env:VER" --notes-file notes.md
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME $env:ZIP --clobber
+            gh release edit $env:GITHUB_REF_NAME --title "DraftBot $env:VER" --notes-file notes.md
+          } else {
+            gh release create $env:GITHUB_REF_NAME $env:ZIP --title "DraftBot $env:VER" --notes-file notes.md
+          }
+          exit $LASTEXITCODE
