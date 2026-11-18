@@ -1,6 +1,6 @@
 """Teste de ponta a ponta da atualização automática com o DraftBot.exe de verdade (roda no Windows, no GitHub).
 
-    python tools/e2e_update.py build\\draftbot.dist
+    python tools/e2e_update.py build\\DraftBot.exe
 
 Copia o programa para uma pasta com acento, publica uma "versão 99.0.0" num servidor local,
 pede a atualização pela API e confere: arquivos trocados, programa reaberto, resultado "ok".
