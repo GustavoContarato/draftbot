@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.4.0
+- Dia de patch novo: nas primeiras 24 h as estatísticas também usam as partidas do patch anterior, com peso que cai até zero ao fim do dia. A página avisa enquanto a mistura está ativa.
+
 ## v2.3.0
 - O DraftBot agora abre na janela dele, como um aplicativo: sem abas, sem barra de endereço e sem a janela preta. Fechar a janela encerra o programa.
 - A página continua atualizando mesmo com a janela minimizada.

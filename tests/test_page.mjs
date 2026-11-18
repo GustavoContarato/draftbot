@@ -161,5 +161,20 @@ await test("patch novo descarta dados antigos ao renovar (erro corrigido)", asyn
   S.meta = META; await __T.loadMeta();
 });
 
+await test("dia de patch novo: avisa a mistura e renova ao terminar", async () => {
+  await settle();
+  const until = Date.now() / 1000 + 20 * 3600;
+  S.meta = Object.assign({}, META, { version: "16.23", blend: { prev: "16.22", until, weight: 0.8 } });
+  await __T.loadMeta();
+  assert(els.patch.textContent.includes("26.23 + 26.22"), els.patch.textContent);
+  assert(strip(els.banner.innerHTML).includes("também usam o patch 26.22"), els.banner.innerHTML);
+  __T.D.tables["x|y"] = { rows: [] };
+  S.meta = Object.assign({}, META, { version: "16.23", blend: null });   // passou o primeiro dia
+  await __T.loadMeta();
+  assert(!("x|y" in __T.D.tables), "deveria buscar de novo só com o patch novo");
+  assert(els.banner.innerHTML === "", els.banner.innerHTML);
+  S.meta = META; await __T.loadMeta();
+});
+
 console.log(`\n${passed} ok, ${failed} falharam`);
 process.exit(failed ? 1 : 0);

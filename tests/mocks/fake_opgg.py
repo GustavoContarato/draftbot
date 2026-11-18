@@ -4,6 +4,8 @@
     op.version = "16.23"     # simula patch novo
     op.fail = 2              # as próximas 2 chamadas falham (HTTP 503)
     op.calls                 # lista de (ferramenta, argumentos) recebidas
+    op.scale = 0.01          # patch recém-saído: 1% das partidas
+    op.shift = 0.05          # e taxas de vitória diferentes (para ver a mistura)
 """
 import json
 import threading
@@ -27,7 +29,9 @@ class FakeOPGG:
         self.version = "16.22"
         self.fail = 0
         self.calls = []
-        self.small = {"SYNDRA"}      # confrontos com poucas partidas (testa a build geral)
+        self.small = {"SYNDRA"}
+        self.scale = 1.0
+        self.shift = 0.0      # confrontos com poucas partidas (testa a build geral)
         self.srv = None
 
     @property
@@ -77,8 +81,8 @@ class FakeOPGG:
         for p, l in POS.items():
             rows = []
             for i, c in enumerate(l):
-                play = 200000 - i * 15000
-                wr = 0.53 - i * 0.004
+                play = int((200000 - i * 15000) * self.scale)
+                wr = 0.53 - i * 0.004 + self.shift
                 rows.append(f'Top("{c}",{1 + i // 3},{i + 1},{int(play * wr)},{wr:.2f},{0.12 - i * 0.01:.3f},0.02,0.95,{play},false)')
             parts.append("[" + ",".join(rows) + "]")
         return head + "LolListLaneMetaChampions(Data(Positions(" + ",".join(parts) + ")))"
@@ -101,8 +105,8 @@ LolGetChampionAnalysis(Data(Summary(AverageStats(0.51,0.11,1,8)),CoreItems([3157
     def guide(self, a):
         pos, me = a["position"], a["my_champion"]
         small = me in self.small
-        counters = [{"champion_id": i, "champion_name": c, "play": 5000 + i * 300,
-                     "win": int((5000 + i * 300) * (0.44 + (sum(map(ord, me + c)) % 120) / 1000))}
+        counters = [{"champion_id": i, "champion_name": c, "play": int((5000 + i * 300) * self.scale),
+                     "win": int((5000 + i * 300) * self.scale * (0.44 + self.shift + (sum(map(ord, me + c)) % 120) / 1000))}
                     for i, c in enumerate(POS[pos])]
         rune = {"id": 8008, "primary_page_id": 8000, "primary_rune_ids": [8008, 8009, 9103, 8017],
                 "primary_rune_names": ["Ritmo Fatal", "Presença de Espírito", "Lenda: Linhagem", "Dilacerar"],
@@ -122,7 +126,7 @@ LolGetChampionAnalysis(Data(Summary(AverageStats(0.51,0.11,1,8)),CoreItems([3157
 
     def synergy(self, a):
         l = POS[a["synergy_position"]]
-        rows = ",".join(f'Synergie("{c}",{i + 1},0,{9000 - i * 500},{0.54 - i * 0.01:.2f})' for i, c in enumerate(l[:6]))
+        rows = ",".join(f'Synergie("{c}",{i + 1},0,{int((9000 - i * 500) * self.scale)},{0.54 - i * 0.01 + self.shift:.2f})' for i, c in enumerate(l[:6]))
         return ("class LolGetChampionSynergies: data\nclass Data: synergies\n"
                 "class Synergie: synergy_champion_name,score_rank,score,play,win_rate\n\n"
                 f"LolGetChampionSynergies(Data([{rows}]))")

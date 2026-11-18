@@ -115,6 +115,7 @@ input.bad{border-color:#7a2f2a}
 .alt{font-size:11.5px;color:var(--mu);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 footer{color:var(--mu);font-size:11.5px;margin-top:22px;line-height:1.7;border-top:1px solid var(--ln);padding-top:14px}
 footer a{color:#ddd}
+.banner.note{border-left-color:#777}
 .banner{border:1px solid var(--ln2);border-left:2px solid var(--red);padding:10px 12px;border-radius:8px;font-size:12.5px;color:#ccc;margin-bottom:14px}
 .chance{font-size:20px;font-weight:700;line-height:1}
 .chance small{display:block;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--mu);text-transform:uppercase;margin-top:3px}
@@ -851,13 +852,21 @@ async function loadClientData(){
     champs.forEach(c=>{ if(registerChamp(c.name,c.alias)) added++; }); if(added){refreshList();update();} }
   catch(e){} finally{ setTimeout(()=>{D.clientLoading=false;},30000); }
 }
+const patchName=v=>v?("26."+String(v).split(".")[1]):"anterior";
+function blendNote(b){
+  if(!b) return "";
+  const t=new Date(b.until*1000), h=t.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  const dia=t.toDateString()===new Date().toDateString()?"hoje":"amanhã";
+  return `<div class="banner note">Patch novo: ainda há poucas partidas. Até ${dia} às ${h}, as estatísticas também usam o patch ${patchName(b.prev)}, com peso cada vez menor.</div>`;
+}
 async function loadMeta(){
   try{const m=await api("/api/meta");
-    if(D.meta&&D.meta.version&&m.version&&m.version!==D.meta.version){ // patch novo: descarta o que veio do anterior
+    const dk=x=>(x.version||"")+"|"+(x.blend?x.blend.prev:"");
+    if(D.meta&&D.meta.version&&m.version&&dk(m)!==dk(D.meta)){ // patch novo, ou fim da mistura com o anterior
       D.tables={};D.syn={};D.builds={};D.err={}; }
     D.meta=m; D.metaT=Date.now(); Object.keys(META_IDX).forEach(k=>delete META_IDX[k]);
     let added=0; Object.values(D.meta.positions).forEach(l=>l.forEach(x=>{ if(registerChamp(x.champion)) added++; })); if(added) refreshList();
-    document.getElementById("patch").textContent="patch "+(D.meta.version?("26."+D.meta.version.split(".")[1]):"atual")+" · OP.GG"; document.getElementById("banner").innerHTML=""; update();}
+    document.getElementById("patch").textContent="patch "+(D.meta.version?patchName(D.meta.version):"atual")+(D.meta.blend?" + "+patchName(D.meta.blend.prev):"")+" · OP.GG"; document.getElementById("banner").innerHTML=blendNote(D.meta.blend); update();}
   catch(e){document.getElementById("patch").textContent="sem estatísticas"; document.getElementById("banner").innerHTML=`<div class="banner">Não consegui buscar as estatísticas da OP.GG (${e.message}). As recomendações usam só a composição até a conexão voltar. Tentando de novo em 30 s.</div>`; setTimeout(loadMeta,30000);}
 }
 async function loadVersion(){

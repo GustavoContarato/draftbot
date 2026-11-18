@@ -34,6 +34,10 @@ com estatísticas de ranqueadas do patch atual (OP.GG):
 - sinergia medida com cada aliado já escolhido;
 - composição dos dois times;
 É uma estimativa para comparar opções, não uma previsão exata.
+No dia em que sai um patch novo ainda há poucas partidas dele. Por isso, nas
+primeiras 24 h o DraftBot também usa as do patch anterior, com peso que cai
+até zero ao fim do dia (a página avisa enquanto isso acontece). Só funciona se
+o DraftBot foi aberto no patch anterior, no dia antes da virada.
 A coluna Recomendações é igual para qualquer conta: só depende do patch e da
 seleção. Campeões que você não tem aparecem marcados ("você não tem"), não
 escondidos. A coluna Seu pool soma a isso a sua experiência e o seu resultado

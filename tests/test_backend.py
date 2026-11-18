@@ -250,6 +250,9 @@ class Estatisticas(unittest.TestCase):
             self.assertEqual(DB.opgg.cache["__patch__"]["v"], "16.23")
         finally:
             OPGG.version = "16.22"
+            with DB.opgg.lock:
+                DB.opgg.cache, DB.opgg.prev = {}, {}
+            DB.opgg._save_prev()
 
     def test_cache_gravado_e_limpo(self):
         api("/api/synergy?champ=Jinx&pos=adc&target=support")
@@ -262,6 +265,78 @@ class Estatisticas(unittest.TestCase):
         self.assertNotIn("velho", disk)
         self.assertGreater(len(disk), 0)
         self.assertFalse(os.path.exists(DB.CACHE_FILE + ".tmp"))
+
+
+class PatchNovo(unittest.TestCase):
+    """No 1º dia do patch novo, as estatísticas misturam o patch anterior com peso caindo até 0 em 24 h."""
+
+    def setUp(self):
+        self.reset()
+
+    def tearDown(self):
+        self.reset()
+
+    def reset(self):
+        OPGG.version, OPGG.scale, OPGG.shift = "16.22", 1.0, 0.0
+        with DB.opgg.lock:
+            DB.opgg.cache = {}
+            DB.opgg.prev = {}
+        DB.opgg._save_prev()
+
+    def virar_patch(self, visto_ha=None):
+        """Usa o patch 16.22, envelhece o cache e publica o 16.23 com 1% das partidas."""
+        _, m = api("/api/meta")
+        _, t = api("/api/table?pos=jungle&champ=Vi&opp=Lee%20Sin")
+        _, y = api("/api/synergy?champ=Jinx&pos=adc&target=support")
+        with DB.opgg.lock:
+            for v in DB.opgg.cache.values():
+                v["t"] -= (visto_ha or DB.CACHE_TTL + 1)
+        OPGG.version, OPGG.scale, OPGG.shift = "16.23", 0.01, 0.05
+        return m["data"], t["data"], y["data"]
+
+    @staticmethod
+    def row(lst, name, key="champion"):
+        return next(x for x in lst if x[key] == name)
+
+    def test_mistura_no_primeiro_dia(self):
+        m0, t0, y0 = self.virar_patch()
+        _, r = api("/api/meta")
+        m = r["data"]
+        self.assertEqual(m["version"], "16.23")
+        self.assertEqual(m["blend"]["prev"], "16.22")
+        self.assertGreater(m["blend"]["weight"], 0.99)
+        old, new = self.row(m0["positions"]["adc"], "Xayah"), self.row(m["positions"]["adc"], "Xayah")
+        self.assertGreater(new["play"], old["play"])                      # somou as partidas dos dois patches
+        self.assertGreater(new["win_rate"], old["win_rate"])             # e puxou um pouco para o patch novo
+        self.assertLess(new["win_rate"], old["win_rate"] + 0.01)         # mas o anterior ainda pesa mais
+        _, r = api("/api/table?pos=jungle&champ=Vi&opp=Lee%20Sin")
+        a, b = self.row(t0["rows"], "Graves", "name"), self.row(r["data"]["rows"], "Graves", "name")
+        self.assertGreater(b["play"], a["play"])
+        _, r = api("/api/synergy?champ=Jinx&pos=adc&target=support")
+        a, b = self.row(y0, "Thresh", "synergy_champion_name"), self.row(r["data"], "Thresh", "synergy_champion_name")
+        self.assertGreater(b["play"], a["play"])
+        self.assertTrue(os.path.exists(DB.PREV_FILE))
+
+    def test_peso_cai_ao_longo_do_dia(self):
+        self.virar_patch()
+        DB.opgg.meta()
+        DB.opgg.prev["until"] = time.time() + DB.BLEND_SECS / 2
+        self.assertAlmostEqual(DB.opgg.blend_weight(), 0.5, places=2)
+
+    def test_depois_do_primeiro_dia_so_o_patch_novo(self):
+        self.virar_patch()
+        DB.opgg.meta()
+        DB.opgg.prev["until"] = time.time() - 1
+        _, r = api("/api/meta")
+        self.assertIsNone(r["data"]["blend"])
+        self.assertEqual(self.row(r["data"]["positions"]["adc"], "Xayah")["play"], 2000)   # só o 1% do patch novo
+        self.assertFalse(os.path.exists(DB.PREV_FILE))
+
+    def test_sem_mistura_se_o_patch_anterior_e_velho(self):
+        self.virar_patch(visto_ha=25 * 3600)       # programa ficou fechado mais de um dia
+        _, r = api("/api/meta")
+        self.assertIsNone(r["data"]["blend"])
+        self.assertEqual(self.row(r["data"]["positions"]["adc"], "Xayah")["play"], 2000)
 
 
 class AvisoDeVersao(unittest.TestCase):

@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -32,11 +32,13 @@ os.makedirs(DATA_DIR, exist_ok=True)
 PAGE = os.path.join(HERE, "index.html")
 ICON = os.path.join(HERE, "assets", "draftbot.ico")
 CACHE_FILE = os.path.join(DATA_DIR, "cache_opgg.json")
+PREV_FILE = os.path.join(DATA_DIR, "cache_patch_anterior.json")
 LOG_FILE = os.path.join(DATA_DIR, "draftbot.log")
 CONFIG_FILE = next((p for p in (os.path.join(APP_DIR, "config.json"), os.path.join(DATA_DIR, "config.json"))
                     if os.path.exists(p)), os.path.join(APP_DIR, "config.json"))
 CACHE_TTL = 6 * 3600            # dados da OP.GG: atualizados diariamente
 CACHE_KEEP = 48 * 3600          # entradas mais velhas que isso são apagadas do arquivo
+BLEND_SECS = 24 * 3600          # no 1º dia de patch novo, mistura com o patch anterior (peso caindo de 1 a 0)
 OPGG_URL = os.environ.get("DRAFTBOT_OPGG", "https://mcp-api.op.gg/mcp")
 LANG = "pt_BR"
 MIN_BUILD_SAMPLE = 150          # abaixo disso, a build do confronto é considerada rara
@@ -225,6 +227,12 @@ class OPGG:
         except Exception:
             self.cache = {}
         self._prune()
+        self.prev = {}                   # patch anterior guardado na virada: {"version","since","until","entries"}
+        try:
+            with open(PREV_FILE, encoding="utf-8") as f:
+                self.prev = json.load(f)
+        except Exception:
+            self.prev = {}
         threading.Thread(target=self._saver, daemon=True).start()
 
     def _prune(self):
@@ -260,8 +268,8 @@ class OPGG:
             return 0
 
     def call(self, tool, args, ttl=CACHE_TTL):
+        key = self._key(tool, args)
         args = dict(args, client_app=f"DraftBot/{VERSION}")
-        key = hashlib.sha1((tool + json.dumps(args, sort_keys=True)).encode()).hexdigest()
         with self.lock:
             hit = self.cache.get(key)
             if hit and time.time() - hit["t"] < ttl:
@@ -298,15 +306,19 @@ class OPGG:
         val = parse_compact(text)
         self.ok, self.last_error = True, ""
         with self.lock:
-            self.cache[key] = {"t": time.time(), "v": val}
+            self.cache[key] = {"t": time.time(), "v": val, "a": [tool, args]}
             self.dirty = True
         return val
 
     # ---------- consultas ----------
     def meta(self):
         f = "{champion,tier,rank,win,win_rate,pick_rate,ban_rate,role_rate,play,is_rip}"
-        v = self.call("lol_list_lane_meta_champions", {"position": "all", "lang": LANG, "desired_output_fields":
-                      [f"data.positions.{p}[].{f}" for p in ("top", "jungle", "mid", "adc", "support")]})
+        margs = {"position": "all", "lang": LANG, "desired_output_fields":
+                 [f"data.positions.{p}[].{f}" for p in ("top", "jungle", "mid", "adc", "support")]}
+        mkey = self._key("lol_list_lane_meta_champions", margs)
+        with self.lock:
+            old_meta = self.cache.get(mkey)      # guardado antes de ser trocado pelo do patch novo
+        v = self.call("lol_list_lane_meta_champions", margs)
         pos = (v.get("data") or {}).get("positions") or {}
         out = {p: [x for x in (pos.get(p) or []) if isinstance(x, dict)] for p in ("top", "jungle", "mid", "adc", "support")}
         version = ""
@@ -319,15 +331,126 @@ class OPGG:
             pass
         if version:
             with self.lock:
-                prev = (self.cache.get("__patch__") or {}).get("v")
+                pe = self.cache.get("__patch__") or {}
+                prev = pe.get("v")
                 if prev and prev != version:
-                    # patch novo: descarta confrontos, builds e sinergias do patch anterior
-                    keep = {k: v for k, v in self.cache.items() if v.get("t", 0) >= time.time() - 60}
-                    log(f"Patch novo detectado ({prev} → {version}): descartando estatísticas antigas.")
-                    self.cache = keep
+                    self._turn_patch(prev, version, pe.get("t", 0), mkey, old_meta)
                 self.cache["__patch__"] = {"t": time.time(), "v": version}
                 self.dirty = True
-        return {"version": version, "positions": out}
+        w = self.blend_weight(version)
+        if w > 0:
+            ov = ((self.prev["entries"].get(mkey) or {}).get("v") or {})
+            opos = (ov.get("data") or {}).get("positions") or {}
+            out = {p: self._mix_meta(out[p], [x for x in (opos.get(p) or []) if isinstance(x, dict)], w) for p in out}
+        return {"version": version, "positions": out, "blend": self.blend_info(version)}
+
+    # ---------- virada de patch ----------
+    @staticmethod
+    def _key(tool, args):
+        args = dict(args, client_app=f"DraftBot/{VERSION}")
+        return hashlib.sha1((tool + json.dumps(args, sort_keys=True)).encode()).hexdigest()
+
+    def _turn_patch(self, prev, version, prev_seen, mkey, old_meta):
+        """Chamado com o lock. No 1º dia do patch novo há poucas partidas; se o programa estava em uso
+        no patch anterior (visto há menos de 24 h), guarda as estatísticas dele para misturar por um dia."""
+        now = time.time()
+        old = {k: v for k, v in self.cache.items() if v.get("t", 0) < now - 60 and not k.startswith("__")}
+        if old_meta:
+            old[mkey] = old_meta
+        self.cache = {k: v for k, v in self.cache.items() if v.get("t", 0) >= now - 60}
+        if now - prev_seen < BLEND_SECS and old:
+            self.prev = {"version": prev, "new": version, "since": now, "until": now + BLEND_SECS, "entries": old}
+            log(f"Patch novo detectado ({prev} → {version}): até amanhã as estatísticas misturam os dois patches.")
+        else:
+            self.prev = {}
+            log(f"Patch novo detectado ({prev} → {version}): descartando estatísticas antigas.")
+        self._save_prev()
+
+    def _save_prev(self):
+        try:
+            if self.prev:
+                tmp = PREV_FILE + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(self.prev, f, ensure_ascii=False)
+                os.replace(tmp, PREV_FILE)
+            elif os.path.exists(PREV_FILE):
+                os.remove(PREV_FILE)
+        except Exception as e:
+            log("Aviso: não consegui gravar o patch anterior:", e)
+
+    def blend_weight(self, version=None):
+        """Peso das partidas do patch anterior: 1 na virada, caindo até 0 em 24 h."""
+        p = self.prev
+        if not p or not p.get("entries"):
+            return 0.0
+        version = version or (self.cache.get("__patch__") or {}).get("v")
+        if version and p.get("new") and version != p["new"]:
+            return 0.0
+        left = p.get("until", 0) - time.time()
+        if left <= 0:
+            with self.lock:
+                self.prev = {}
+            self._save_prev()
+            return 0.0
+        return max(0.0, min(1.0, left / BLEND_SECS))
+
+    def blend_info(self, version=None):
+        w = self.blend_weight(version)
+        if w <= 0:
+            return None
+        return {"prev": self.prev.get("version", ""), "until": self.prev.get("until", 0), "weight": round(w, 3)}
+
+    @staticmethod
+    def _mix_counts(new_play, new_win, old_play, old_win, w):
+        play = (new_play or 0) + w * (old_play or 0)
+        win = (new_win or 0) + w * (old_win or 0)
+        return play, win
+
+    def _mix_meta(self, new, old, w):
+        idx = {champ_key(x.get("champion", "")): x for x in old}
+        out, seen = [], set()
+        for x in new:
+            k = champ_key(x.get("champion", ""))
+            seen.add(k)
+            o = idx.get(k)
+            if o:
+                x = dict(x)
+                x["play"], x["win"] = self._mix_counts(x.get("play"), x.get("win"), o.get("play"), o.get("win"), w)
+                if x["play"]:
+                    x["win_rate"] = round(x["win"] / x["play"], 4)
+            out.append(x)
+        for k, o in idx.items():            # campeões que ainda não aparecem no patch novo
+            if k not in seen and o.get("play"):
+                o = dict(o, play=w * o.get("play", 0), win=w * o.get("win", 0))
+                out.append(o)
+        return out
+
+    def _mix_rows(self, new, old, w, name="name"):
+        idx = {champ_key(r.get(name, "")): r for r in old}
+        out, seen = [], set()
+        for r in new:
+            k = champ_key(r.get(name, ""))
+            seen.add(k)
+            o = idx.get(k)
+            if o:
+                r = dict(r)
+                r["play"], r["win"] = self._mix_counts(r.get("play"), r.get("win"), o.get("play"), o.get("win"), w)
+            out.append(r)
+        for k, o in idx.items():
+            if k not in seen and o.get("play"):
+                out.append(dict(o, play=w * o.get("play", 0), win=w * o.get("win", 0)))
+        return out
+
+    def _prev_guide_rows(self, pos, champ):
+        """Tabela de confrontos do patch anterior para o campeão (qualquer oponente de referência)."""
+        for e in (self.prev.get("entries") or {}).values():
+            a = e.get("a") or []
+            if len(a) == 2 and a[0] == "lol_get_lane_matchup_guide" and a[1].get("position") == pos \
+                    and a[1].get("my_champion") == champ_key(champ):
+                d = ((e.get("v") or {}).get("data") or {})
+                return [{"name": c.get("champion_name"), "play": c.get("play", 0), "win": c.get("win", 0)}
+                        for c in (d.get("counters") or []) if c.get("champion_name")]
+        return []
 
     def common_opp(self, pos, champ):
         """Um adversário comum na rota (só para obter a tabela de confrontos)."""
@@ -348,14 +471,28 @@ class OPGG:
         d = (self.guide(pos, champ, opp) or {}).get("data") or {}
         rows = [{"name": c.get("champion_name"), "play": c.get("play", 0), "win": c.get("win", 0)}
                 for c in (d.get("counters") or []) if c.get("champion_name")]
+        w = self.blend_weight()
+        if w > 0:
+            rows = self._mix_rows(rows, self._prev_guide_rows(pos, champ), w)
         return {"champ": champ, "pos": pos, "rows": rows}
 
     def synergy(self, champ, pos, target):
-        v = self.call("lol_get_champion_synergies", {"champion": champ_key(champ), "my_position": pos,
-                      "synergy_position": target, "lang": LANG, "desired_output_fields":
-                      ["data.synergies[].{synergy_champion_name,score_rank,score,play,win_rate}"]})
-        rows = ((v or {}).get("data") or {}).get("synergies") or []
-        return [r for r in rows if isinstance(r, dict)]
+        sargs = {"champion": champ_key(champ), "my_position": pos, "synergy_position": target, "lang": LANG,
+                 "desired_output_fields": ["data.synergies[].{synergy_champion_name,score_rank,score,play,win_rate}"]}
+        v = self.call("lol_get_champion_synergies", sargs)
+        rows = [r for r in (((v or {}).get("data") or {}).get("synergies") or []) if isinstance(r, dict)]
+        w = self.blend_weight()
+        if w > 0:
+            ov = ((self.prev["entries"].get(self._key("lol_get_champion_synergies", sargs)) or {}).get("v") or {})
+            old = [r for r in ((ov.get("data") or {}).get("synergies") or []) if isinstance(r, dict)]
+            if old:
+                def counted(lst):   # sinergia vem com taxa; converte em vitórias para somar
+                    return [dict(r, win=(r.get("win_rate") or 0) * (r.get("play") or 0)) for r in lst]
+                rows = self._mix_rows(counted(rows), counted(old), w, name="synergy_champion_name")
+                for r in rows:
+                    if r.get("play"):
+                        r["win_rate"] = round(r["win"] / r["play"], 4)
+        return rows
 
     def general(self, pos, champ):
         fields = ["data.runes.{primary_page_id,primary_rune_ids[],primary_rune_names[],secondary_page_id,secondary_rune_ids[],secondary_rune_names[],stat_mod_ids[],stat_mod_names[],play,win,pick_rate}",
