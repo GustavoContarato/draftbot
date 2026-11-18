@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.5.0
+- Atualização automática: o aviso de versão nova ganhou o botão "Atualizar agora", que baixa, confere e instala a versão nova e reabre o DraftBot. Se algo falhar, continua na versão anterior.
+
 ## v2.4.0
 - Dia de patch novo: nas primeiras 24 h as estatísticas também usam as partidas do patch anterior, com peso que cai até zero ao fim do dia. A página avisa enquanto a mistura está ativa.
 

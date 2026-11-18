@@ -1,4 +1,4 @@
-DRAFTBOT 2.4 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.5 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
@@ -80,5 +80,9 @@ SE ALGO DER ERRADO
 - "Cliente do LoL não encontrado": confira se o cliente está aberto e logado.
 
 NOVAS VERSÕES
-Quando sair uma versão nova, a página do DraftBot mostra um aviso com o link
-para baixar. Basta extrair a versão nova por cima da antiga.
+Quando sair uma versão nova, a página do DraftBot mostra um aviso com o botão
+"Atualizar agora". Ele baixa a versão nova, confere se o arquivo é o certo,
+fecha, troca os arquivos e reabre sozinho (leva alguns segundos). Se algo
+der errado, você continua na versão que tinha.
+Se o DraftBot estiver numa pasta protegida (ex.: Arquivos de Programas), o
+aviso mostra um link para baixar; é só extrair por cima da pasta antiga.

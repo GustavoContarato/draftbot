@@ -20,19 +20,15 @@ jobs:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ vars.GIST_ID }}
           DOWNLOAD_URL: ${{ vars.DOWNLOAD_URL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           test -n "$GIST_TOKEN" -a -n "$GIST_ID" -a -n "$DOWNLOAD_URL" || { echo "Configure GIST_TOKEN, GIST_ID e DOWNLOAD_URL"; exit 1; }
           v=$(python3 tools/check_version.py)
-          python3 - "$v" <<'PY'
-          import json, os, subprocess, sys
-          v = sys.argv[1]
-          notes = subprocess.run(["python3", "tools/release_notes.py", v], capture_output=True, text=True).stdout
-          first = " ".join(l.lstrip("- ").strip() for l in notes.splitlines()[:2])[:300]
-          info = {"version": v, "url": os.environ["DOWNLOAD_URL"], "notes": first}
-          json.dump({"files": {"version.json": {"content": json.dumps(info, ensure_ascii=False, indent=2)}}},
-                    open("payload.json", "w"), ensure_ascii=False)
-          print(json.dumps(info, ensure_ascii=False, indent=2))
-          PY
+          gh release download "v$v" -p "*.zip" -D rel
+          sha=$(sha256sum rel/*.zip | cut -d' ' -f1)
+          python3 tools/gist_json.py "$v" "$sha" "$DOWNLOAD_URL" > version.json
+          cat version.json
+          python3 -c "import json;print(json.dumps({'files':{'version.json':{'content':open('version.json',encoding='utf-8').read()}}}))" > payload.json
           curl -fsS -X PATCH -H "Authorization: Bearer $GIST_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/gists/$GIST_ID" --data @payload.json > /dev/null
           echo "Aviso publicado."

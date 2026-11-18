@@ -427,6 +427,7 @@ const buildOf=(role,champ,opp)=>want("builds",[role,champ,opp||""].join("|"),`/a
 let upTimer=null; function scheduleUpdate(){clearTimeout(upTimer);upTimer=setTimeout(update,80);}
 const META_IDX={};
 function metaEntry(role,n){ if(!D.meta) return null; const k=role; if(!META_IDX[k]){META_IDX[k]={}; (D.meta.positions[OPOS[role]]||[]).forEach(x=>{const r=resolve(x.champion); if(r) META_IDX[k][r]=x;});} return META_IDX[k][n]||null; }
+const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 async function post(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-DraftBot":"1"},body:JSON.stringify(body)});return r.json();}
 
 /* ===================== 4. Interface do draft ===================== */
@@ -869,9 +870,27 @@ async function loadMeta(){
     document.getElementById("patch").textContent="patch "+(D.meta.version?patchName(D.meta.version):"atual")+(D.meta.blend?" + "+patchName(D.meta.blend.prev):"")+" · OP.GG"; document.getElementById("banner").innerHTML=blendNote(D.meta.blend); update();}
   catch(e){document.getElementById("patch").textContent="sem estatísticas"; document.getElementById("banner").innerHTML=`<div class="banner">Não consegui buscar as estatísticas da OP.GG (${e.message}). As recomendações usam só a composição até a conexão voltar. Tentando de novo em 30 s.</div>`; setTimeout(loadMeta,30000);}
 }
+async function updateNow(){
+  const btn=document.getElementById("updBtn"), msg=document.getElementById("updMsg");
+  btn.disabled=true; msg.textContent="Baixando e conferindo a versão nova…";
+  try{const r=await post("/api/update",{});
+    if(!r.ok){ msg.textContent="Não deu para atualizar: "+r.error; btn.disabled=false; return; }
+    msg.textContent="Instalando… o DraftBot vai fechar e reabrir sozinho em alguns segundos.";
+    setTimeout(()=>{try{window.close();}catch(e){}},1200);
+  }catch(e){ msg.textContent="Não deu para atualizar agora. Tente de novo."; btn.disabled=false; }
+}
 async function loadVersion(){
   try{const r=await fetch("/api/version",{cache:"no-store"}); const v=await r.json(); document.getElementById("verTxt").textContent="DraftBot "+v.version;
-    if(v.update) document.getElementById("updBanner").insertAdjacentHTML("afterbegin",`<div class="banner"><b>Nova versão ${v.update.version} disponível.</b> ${v.update.notes||""} ${v.update.url?`<a href="${v.update.url}" target="_blank" rel="noopener" style="color:#fff">Baixar</a>`:""}</div>`);}catch(e){}
+    const ub=document.getElementById("updBanner"); ub.innerHTML="";
+    if(v.updated&&v.updated.result==="ok") ub.insertAdjacentHTML("beforeend",`<div class="banner note">DraftBot atualizado para a versão ${esc(v.updated.version)}.</div>`);
+    if(v.updated&&v.updated.result==="falhou") ub.insertAdjacentHTML("beforeend",`<div class="banner">Não consegui instalar a versão ${esc(v.updated.version)}; você continua na ${esc(v.version)}. Baixe a versão nova pelo link do aviso.</div>`);
+    if(v.update){
+      const auto=v.autoUpdate&&v.update.sha256;
+      ub.insertAdjacentHTML("beforeend",`<div class="banner" id="updBox"><b>Nova versão ${esc(v.update.version)} disponível.</b> ${esc(v.update.notes||"")} `+
+        (auto?`<button class="btn" id="updBtn">Atualizar agora</button> <span id="updMsg"></span>`
+             :(v.update.url?`<a href="${esc(v.update.url)}" target="_blank" rel="noopener" style="color:#fff">Baixar</a>`:""))+`</div>`);
+      if(auto) document.getElementById("updBtn").onclick=updateNow;
+    }}catch(e){}
 }
 document.getElementById("diagBtn").onclick=async()=>{
   const m=document.getElementById("diagMsg");

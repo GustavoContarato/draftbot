@@ -17,7 +17,7 @@ o pool do jogador, runas e build numa página local (`http://127.0.0.1:8765`).
 | `CHANGELOG.md` | Notas de cada versão — usadas na release e no aviso de atualização. |
 | `assets/draftbot.ico` | Ícone do executável. |
 | `tests/` | Testes automáticos, com o cliente do LoL e a OP.GG simulados e dados reais da OP.GG em `fixtures/`. |
-| `tools/` | `check_version.py` (tag × versão × changelog) e `release_notes.py`. |
+| `tools/` | `check_version.py` (tag × versão × changelog), `release_notes.py` e `gist_json.py` (monta o `version.json`). |
 | `.github/workflows/` | `build.yml` (testes + `.exe` + release) e `avisar.yml` (aviso de nova versão). |
 
 ## Rodar e testar
@@ -32,17 +32,24 @@ python draftbot.py --selftest                       # autoteste (o mesmo que rod
 ## Publicar uma versão nova
 
 1. Mude `VERSION` em `draftbot.py` e escreva a seção `## vX.Y.Z` no `CHANGELOG.md`.
-2. Envie para o GitHub e crie a tag: `git tag vX.Y.Z && git push --tags`.
+2. Envie para o GitHub e crie a release `vX.Y.Z` (aba **Releases → Draft a new release**, tag nova a partir de `main`),
+   ou `git tag vX.Y.Z && git push --tags`.
 3. O GitHub roda os testes (Linux e Windows), gera o `DraftBot.exe` com Nuitka, confere se ele abre
-   (`--selftest`) e cria a release com `DraftBot-vX.Y.Z-windows.zip`.
-4. Baixe o `.zip` da release e **substitua** o arquivo no Google Drive/OneDrive (substituir mantém o mesmo link).
-5. Em **Actions → Avisar nova versão → Run workflow**: quem tem o DraftBot passa a ver o aviso.
+   (`--selftest`) e anexa `DraftBot-vX.Y.Z-windows.zip` à release. As notas da release trazem o
+   `version.json` pronto, já com a impressão digital (`sha256`) do zip.
+4. Baixe o `.zip` da release e, no Google Drive, **substitua** o arquivo (botão direito → Gerenciar versões →
+   Enviar nova versão). Assim o link continua o mesmo.
+5. Edite o `version.json` do gist colando o bloco das notas da release (com o link do Drive),
+   ou rode **Actions → Avisar nova versão**. Quem tem o DraftBot vê o aviso com **Atualizar agora**.
+
+A atualização automática só instala se o `sha256` do gist bater com o arquivo baixado; sem ele, o aviso
+mostra só o link. O link precisa ser público ("qualquer pessoa com o link").
 
 ## Configuração única
 
 - **Repositório**: privado.
 - **Gist secreto** (não listado; só quem tem o link vê) com um arquivo `version.json`:
-  `{"version": "0.0.0", "url": "", "notes": ""}`
+  `{"version": "0.0.0", "url": "", "notes": "", "sha256": ""}`
 - Em **Settings → Secrets and variables → Actions**:
   - variável `UPDATE_URL` = endereço *raw* do gist, sem o código da revisão:
     `https://gist.githubusercontent.com/<usuário>/<id do gist>/raw/version.json` (vai embutido no `.exe`)

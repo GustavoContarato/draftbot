@@ -339,6 +339,102 @@ class PatchNovo(unittest.TestCase):
         self.assertEqual(self.row(r["data"]["positions"]["adc"], "Xayah")["play"], 2000)
 
 
+class Atualizacao(unittest.TestCase):
+    """Atualização automática: link direto, conferência do arquivo e troca dos arquivos."""
+
+    def setUp(self):
+        import zipfile
+        self.dir = tempfile.mkdtemp(prefix="draftbot-upd-")
+        self.zip = os.path.join(self.dir, "pacote.zip")
+        with zipfile.ZipFile(self.zip, "w") as z:
+            z.writestr("DraftBot/DraftBot.exe", b"novo-exe")
+            z.writestr("DraftBot/index.html", "nova pagina")
+            z.writestr("DraftBot/lib/x.dll", b"dll")
+        import hashlib
+        self.sha = hashlib.sha256(open(self.zip, "rb").read()).hexdigest()
+        self.old_dl = DB._download
+
+        def fake_download(url, dest):
+            self.url = url
+            import shutil
+            shutil.copy(self.zip, dest)
+            return hashlib.sha256(open(dest, "rb").read()).hexdigest()
+        DB._download = fake_download
+
+    def tearDown(self):
+        DB._download = self.old_dl
+
+    def test_link_direto(self):
+        g = DB.direct_url("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing")
+        self.assertEqual(g, "https://drive.usercontent.google.com/download?id=1AbCdEfGhIjKlMnOp&export=download&confirm=t")
+        self.assertEqual(DB.direct_url("https://drive.google.com/open?id=1AbCdEfGhIjKlMnOp"), g)
+        self.assertTrue(DB.direct_url("https://1drv.ms/u/s!abc?e=x").endswith("&download=1"))
+        self.assertEqual(DB.direct_url("https://exemplo.com/a.zip"), "https://exemplo.com/a.zip")
+
+    def test_baixa_confere_e_extrai(self):
+        d = DB.prepare_update({"version": "9.9.9", "url": "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view",
+                               "sha256": self.sha.upper()})
+        self.assertTrue(self.url.startswith("https://drive.usercontent.google.com/"))
+        self.assertEqual(open(os.path.join(d, "DraftBot.exe"), "rb").read(), b"novo-exe")
+
+    def test_recusa_arquivo_diferente_ou_sem_conferencia(self):
+        with self.assertRaisesRegex(RuntimeError, "não confere"):
+            DB.prepare_update({"url": "https://x.com/a.zip", "sha256": "0" * 64})
+        with self.assertRaisesRegex(RuntimeError, "sha256"):
+            DB.prepare_update({"url": "https://x.com/a.zip"})
+        with self.assertRaisesRegex(RuntimeError, "link"):
+            DB.prepare_update({"url": "http://x.com/a.zip", "sha256": self.sha})
+
+    def test_recusa_pacote_com_caminho_perigoso(self):
+        import zipfile, hashlib
+        with zipfile.ZipFile(self.zip, "w") as z:
+            z.writestr("../fora.txt", "x")
+        self.sha = hashlib.sha256(open(self.zip, "rb").read()).hexdigest()
+        with self.assertRaisesRegex(RuntimeError, "caminho"):
+            DB.prepare_update({"url": "https://x.com/a.zip", "sha256": self.sha})
+
+    def test_copia_de_seguranca_so_do_que_muda(self):
+        src, dst, bak = (os.path.join(self.dir, n) for n in ("src", "dst", "bak"))
+        os.makedirs(os.path.join(src, "lib")); os.makedirs(dst)
+        for p, t in (("DraftBot.exe", "novo"), ("lib/x.dll", "novo")):
+            open(os.path.join(src, p), "w").write(t)
+        open(os.path.join(dst, "DraftBot.exe"), "w").write("velho")
+        open(os.path.join(dst, "config.json"), "w").write("{}")
+        DB._backup(src, dst, bak)
+        self.assertEqual(open(os.path.join(bak, "DraftBot.exe")).read(), "velho")
+        self.assertFalse(os.path.exists(os.path.join(bak, "config.json")))
+        self.assertFalse(os.path.exists(os.path.join(bak, "lib", "x.dll")))
+
+    def test_sem_versao_nova_nao_atualiza(self):
+        st, r = api("/api/update", "POST", {}, {"X-DraftBot": "1"})
+        self.assertFalse(r["ok"])
+        st, r = api("/api/update", "POST", {})
+        self.assertEqual(st, 403)
+
+    @unittest.skipUnless(os.name == "nt", "o instalador é um .cmd do Windows")
+    def test_instalador_troca_os_arquivos(self):
+        import shutil
+        base = os.path.join(self.dir, "Área de Trabalho", "Draft Bot")
+        src, dst, bak = os.path.join(self.dir, "novo"), base, os.path.join(self.dir, "anterior")
+        os.makedirs(os.path.join(src, "lib")); os.makedirs(dst)
+        hostname = shutil.which("hostname") or r"C:\Windows\System32\hostname.exe"
+        shutil.copy(hostname, os.path.join(src, "DraftBot.exe"))       # "abre" e sai na hora
+        open(os.path.join(src, "lib", "x.dll"), "w").write("novo")
+        open(os.path.join(dst, "config.json"), "w").write("{}")
+        status = os.path.join(self.dir, "resultado.txt")
+        script = os.path.join(self.dir, "aplicar.cmd")
+        with open(script, "w", encoding="ascii", newline="\r\n") as f:
+            f.write(DB.UPDATER_CMD)
+        espera = subprocess.Popen(["ping", "-n", "3", "127.0.0.1"], stdout=subprocess.DEVNULL)
+        t0 = time.time()
+        subprocess.run(DB.updater_command(script, src, dst, bak, status, espera.pid, "9.9.9"), timeout=90)
+        self.assertGreater(time.time() - t0, 1.0)                        # esperou o programa antigo fechar
+        self.assertEqual(open(status).read().split(), ["ok", "9.9.9"])
+        self.assertEqual(open(os.path.join(dst, "lib", "x.dll")).read(), "novo")
+        self.assertTrue(os.path.exists(os.path.join(dst, "DraftBot.exe")))
+        self.assertTrue(os.path.exists(os.path.join(dst, "config.json")))   # arquivos do usuário ficam
+
+
 class AvisoDeVersao(unittest.TestCase):
     def test_avisa_quando_ha_versao_nova(self):
         from http.server import BaseHTTPRequestHandler
