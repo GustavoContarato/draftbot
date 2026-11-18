@@ -432,7 +432,11 @@ class Atualizacao(unittest.TestCase):
         p = subprocess.Popen(DB.updater_command(script, src, dst, bak, status, espera.pid, "9.9.9"),
                              creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL)
-        p.wait(timeout=90)
+        try:
+            p.wait(timeout=90)
+        finally:
+            if os.path.exists(status + ".log"):
+                print("\n--- registro do instalador ---\n" + open(status + ".log").read())
         self.assertGreater(time.time() - t0, 3.0)                        # esperou o programa antigo fechar
         self.assertEqual(open(status).read().split(), ["ok", "9.9.9"])
         self.assertEqual(open(os.path.join(dst, "lib", "x.dll")).read(), "novo")

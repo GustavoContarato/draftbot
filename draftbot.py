@@ -1060,24 +1060,31 @@ set "BAK=%~3"
 set "STATUS=%~4"
 set "PID=%~5"
 set "VER=%~6"
+set "LOG=%~4.log"
+set "SYS=%SystemRoot%\System32"
+>> "%LOG%" echo inicio %DATE% %TIME% pid=%PID%
 set /a N=0
 :espera
-tasklist /FI "PID eq %PID%" /NH 2>nul | find " %PID% " >nul
+"%SYS%\tasklist.exe" /FI "PID eq %PID%" /NH 2>nul | "%SYS%\find.exe" " %PID% " >nul
 if errorlevel 1 goto copia
 set /a N+=1
 if %N% GEQ 60 goto copia
-ping -n 2 127.0.0.1 >nul
+"%SYS%\PING.EXE" -n 2 127.0.0.1 >nul
 goto espera
 :copia
-robocopy "%SRC%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if %ERRORLEVEL% GEQ 8 goto restaura
+>> "%LOG%" echo copiando apos %N% esperas %TIME%
+"%SYS%\Robocopy.exe" "%SRC%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
+set "RC=%ERRORLEVEL%"
+>> "%LOG%" echo robocopy %RC% %TIME%
+if %RC% GEQ 8 goto restaura
 > "%STATUS%" echo ok %VER%
 goto abre
 :restaura
-robocopy "%BAK%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
+"%SYS%\Robocopy.exe" "%BAK%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
 > "%STATUS%" echo falhou %VER%
 :abre
 start "" "%DST%\DraftBot.exe"
+>> "%LOG%" echo fim %TIME%
 """
 
 
