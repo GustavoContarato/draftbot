@@ -305,6 +305,64 @@ class AvisoDeVersao(unittest.TestCase):
             os.remove(path)
 
 
+class Janela(unittest.TestCase):
+    """Janela própria: o programa encerra quando ela é fechada, e não antes."""
+
+    class FakeSrv:
+        def __init__(self): self.down = threading.Event()
+        def shutdown(self): self.down.set()
+
+    class FakeProc:
+        def __init__(self, alive): self.alive = alive
+        def poll(self): return None if self.alive else 0
+
+    def run_watch(self, proc, beat=False, wait=1.2):
+        W = DB.Window
+        W.proc, W.seen = proc, 0.0
+        srv = self.FakeSrv()
+        stop = threading.Event()
+        def heartbeat():
+            while beat and not stop.is_set():
+                W.seen = time.time(); time.sleep(0.02)
+        threading.Thread(target=heartbeat, daemon=True).start()
+        threading.Thread(target=W.watch, args=(srv, True, 0.05, 0.1), daemon=True).start()
+        closed = srv.down.wait(wait)
+        stop.set()
+        return closed
+
+    def test_fecha_quando_a_janela_fecha(self):
+        self.assertTrue(self.run_watch(self.FakeProc(False)))
+
+    def test_continua_com_a_janela_aberta(self):
+        self.assertFalse(self.run_watch(self.FakeProc(True)))
+
+    def test_continua_se_a_pagina_ainda_esta_aberta(self):
+        # o processo lançado pode repassar a janela a outro já aberto; a página seguir pedindo dados basta
+        self.assertFalse(self.run_watch(self.FakeProc(False), beat=True))
+
+    def test_abre_em_modo_aplicativo(self):
+        W, calls = DB.Window, []
+        old = (DB.os.name, W.find, DB.subprocess.Popen, DB.webbrowser.open)
+        try:
+            DB.os.name = "nt"
+            W.find = staticmethod(lambda: r"C:\Edge\msedge.exe")
+            DB.subprocess.Popen = lambda args, **k: calls.append(args) or self.FakeProc(True)
+            DB.webbrowser.open = lambda u: calls.append(["navegador", u])
+            self.assertTrue(W.open("http://127.0.0.1:1"))
+            W.find = staticmethod(lambda: None)
+            self.assertFalse(W.open("http://127.0.0.1:1"))
+        finally:
+            DB.os.name, W.find, DB.subprocess.Popen, DB.webbrowser.open = old
+        self.assertIn("--app=http://127.0.0.1:1", calls[0])
+        self.assertTrue(any(a.startswith("--user-data-dir=") for a in calls[0]))
+        self.assertEqual(calls[1], ["navegador", "http://127.0.0.1:1"])
+
+    def test_icone(self):
+        import urllib.request
+        with urllib.request.urlopen(f"http://127.0.0.1:{SRV.server_address[1]}/favicon.ico", timeout=5) as r:
+            self.assertEqual(r.read(4), b"\x00\x00\x01\x00")
+
+
 class Processo(unittest.TestCase):
     def run_app(self, *args, port=None, timeout=20):
         env = dict(os.environ, DRAFTBOT_PORT=str(port or free_port()), DRAFTBOT_DATA=TMP)

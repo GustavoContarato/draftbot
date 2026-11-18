@@ -1,4 +1,4 @@
-DRAFTBOT 2.2 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.3 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
@@ -13,9 +13,11 @@ INSTALAÇÃO (uma vez)
 
 COMO USAR
 1. Abra o cliente do League of Legends e faça login.
-2. Dê dois cliques em "DraftBot.exe". Uma janela preta abre
-   (deixe-a aberta) e a página abre no navegador (http://127.0.0.1:8765).
-   Se você abrir de novo sem querer, ele só reabre a página.
+2. Dê dois cliques em "DraftBot.exe". O DraftBot abre na janela dele, como
+   um aplicativo (sem abas nem barra de endereço). Fechou a janela, o
+   programa encerra. Se você abrir de novo sem querer, ele só reabre a janela.
+   (A janela usa o Microsoft Edge, que já vem no Windows; se não houver Edge,
+   Chrome ou Brave, abre no navegador padrão.)
 3. Na seleção de campeões a página se preenche sozinha: sua rota, picks,
    bans, a rota provável de cada inimigo, se você está às cegas ou como
    counter, e quando é a sua vez de banir ou escolher (com sugestão de ban).

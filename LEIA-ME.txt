@@ -14,7 +14,7 @@ INSTALAÇÃO (uma vez)
 COMO USAR
 1. Abra o cliente do League of Legends e faça login.
 2. Dê dois cliques em "Iniciar DraftBot.bat". Uma janela preta abre
-   (deixe-a aberta) e a página abre no navegador (http://127.0.0.1:8765).
+   (deixe-a aberta) e o DraftBot abre numa janela própria, como um aplicativo.
    Se você abrir de novo sem querer, ele só reabre a página.
 3. Na seleção de campeões a página se preenche sozinha: sua rota, picks,
    bans, a rota provável de cada inimigo, se você está às cegas ou como

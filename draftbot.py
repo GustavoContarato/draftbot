@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -30,6 +30,7 @@ DATA_DIR = os.environ.get("DRAFTBOT_DATA") or (
     os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "DraftBot") if FROZEN else HERE)
 os.makedirs(DATA_DIR, exist_ok=True)
 PAGE = os.path.join(HERE, "index.html")
+ICON = os.path.join(HERE, "assets", "draftbot.ico")
 CACHE_FILE = os.path.join(DATA_DIR, "cache_opgg.json")
 LOG_FILE = os.path.join(DATA_DIR, "draftbot.log")
 CONFIG_FILE = next((p for p in (os.path.join(APP_DIR, "config.json"), os.path.join(DATA_DIR, "config.json"))
@@ -891,7 +892,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in ("/", "/index.html"):
             with open(PAGE, "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
+        if u.path == "/favicon.ico":
+            try:
+                with open(ICON, "rb") as f:
+                    return self._send(200, f.read(), "image/x-icon")
+            except OSError:
+                return self._send(404, {"error": "sem ícone"})
         if u.path == "/api/state":
+            Window.seen = time.time()
             st = lcu.state()
             st["opgg"] = opgg.ok
             return self._send(200, st)
@@ -936,6 +944,74 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "não encontrado"})
 
 
+class Window:
+    """Abre o DraftBot numa janela própria (modo aplicativo do Edge/Chrome/Brave), sem abas nem barra
+    de endereço, e encerra o programa quando essa janela é fechada."""
+    seen = 0.0          # último pedido da página (/api/state a cada 1s)
+    proc = None
+
+    @staticmethod
+    def find():
+        env = os.environ.get
+        roots = [env("ProgramFiles(x86)"), env("ProgramFiles"), env("LOCALAPPDATA")]
+        rels = [r"Microsoft\Edge\Application\msedge.exe",
+                r"Google\Chrome\Application\chrome.exe",
+                r"BraveSoftware\Brave-Browser\Application\brave.exe"]
+        for rel in rels:
+            for root in roots:
+                if root and os.path.isfile(os.path.join(root, rel)):
+                    return os.path.join(root, rel)
+        return None
+
+    @classmethod
+    def open(cls, url):
+        exe = cls.find() if os.name == "nt" and "--navegador" not in sys.argv else None
+        if not exe:
+            webbrowser.open(url)
+            return False
+        profile = os.path.join(DATA_DIR, "janela")
+        os.makedirs(profile, exist_ok=True)
+        args = [exe, f"--app={url}", f"--user-data-dir={profile}", "--window-size=1440,900",
+                "--no-first-run", "--no-default-browser-check", "--disable-sync",
+                "--disable-features=Translate,msEdgeSidebarV2,msUndersideButton",
+                # a página precisa continuar atualizando mesmo minimizada (seleção de campeões)
+                "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+                "--disable-backgrounding-occluded-windows"]
+        try:
+            cls.proc = subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return True
+        except OSError as e:
+            log("Não consegui abrir a janela própria; usando o navegador:", e)
+            webbrowser.open(url)
+            return False
+
+    @classmethod
+    def watch(cls, srv, app_mode, tick=2.0, grace=30.0):
+        """Sai quando a janela foi fechada: o processo dela terminou e a página parou de pedir dados.
+        No navegador comum (sem janela própria) espera mais, porque abas em segundo plano ficam lentas."""
+        limit = (12 if app_mode else 180) * tick / 2
+        start = time.time()
+        while True:
+            time.sleep(tick)
+            alive = cls.proc is not None and cls.proc.poll() is None
+            last = max(cls.seen, start)
+            if not alive and time.time() - last > limit and time.time() - start > grace:
+                log("Janela fechada. Encerrando o DraftBot.")
+                srv.shutdown()
+                return
+
+
+def alert(msg):
+    """Mostra uma mensagem ao usuário mesmo sem a janela preta (console) aberta."""
+    log(msg)
+    if os.name == "nt" and FROZEN:
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(None, msg, "DraftBot", 0x40)
+        except Exception:
+            pass
+
+
 def already_running():
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/version", timeout=2) as r:
@@ -958,8 +1034,16 @@ def selftest():
     assert "DRAFT<b>BOT</b>" in get("/"), "página não encontrada"
     assert parse_compact('class X: a,b\n\nX("ok",[1,2])') == {"a": "ok", "b": [1, 2]}
     assert "DraftBot" in json.loads(get("/api/diag"))["data"]
+    with urllib.request.urlopen(base + "/favicon.ico", timeout=5) as r:
+        assert r.status == 200 and r.read(4) == b"\x00\x00\x01\x00", "ícone não encontrado"
     srv.shutdown()
-    print(f"SELFTEST OK · DraftBot {VERSION} · {'executável' if FROZEN else 'script'}", flush=True)
+    msg = f"SELFTEST OK · DraftBot {VERSION} · {'executável' if FROZEN else 'script'}"
+    with open(os.path.join(DATA_DIR, "selftest.txt"), "w", encoding="utf-8") as f:
+        f.write(msg)
+    try:
+        print(msg, flush=True)
+    except Exception:
+        pass
 
 
 def main():
@@ -968,24 +1052,27 @@ def main():
     except Exception:
         pass
     if "--version" in sys.argv:
-        print(VERSION)
+        try:
+            print(VERSION)
+        except Exception:
+            pass
         return
     if "--selftest" in sys.argv:
         selftest()
         return
     url = f"http://127.0.0.1:{PORT}"
+    show = "--no-browser" not in sys.argv
     try:
         srv = Server(("127.0.0.1", PORT), Handler)
     except OSError:
         if already_running():
-            log("O DraftBot já está aberto em outra janela. Abrindo a página dele.")
-            if "--no-browser" not in sys.argv:
-                webbrowser.open(url)
-            time.sleep(3)
+            log("O DraftBot já está aberto. Abrindo a janela dele.")
+            if show:
+                Window.open(url)
             return
-        log(f"A porta {PORT} está ocupada por outro programa. Feche-o e abra o DraftBot de novo.")
+        alert(f"A porta {PORT} está ocupada por outro programa. Feche-o e abra o DraftBot de novo.")
         return
-    log(f"DraftBot {VERSION} rodando em {url}. Deixe esta janela aberta; feche-a para encerrar.")
+    log(f"DraftBot {VERSION} rodando em {url}.")
 
     def warm():
         try:
@@ -995,8 +1082,9 @@ def main():
             log("Aviso: não consegui buscar estatísticas da OP.GG agora:", e)
         update_info()
     threading.Thread(target=warm, daemon=True).start()
-    if "--no-browser" not in sys.argv:
-        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    if show:
+        app_mode = Window.open(url)
+        threading.Thread(target=Window.watch, args=(srv, app_mode), daemon=True).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

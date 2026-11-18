@@ -1,5 +1,10 @@
 # Mudanças
 
+## v2.3.0
+- O DraftBot agora abre na janela dele, como um aplicativo: sem abas, sem barra de endereço e sem a janela preta. Fechar a janela encerra o programa.
+- A página continua atualizando mesmo com a janela minimizada.
+- Ícone do DraftBot na janela.
+
 ## v2.2.0
 - Agora também como executável (DraftBot.exe): não precisa de Python.
 - Corrigido: uma falha momentânea ao buscar estatísticas ficava valendo até fechar a página; agora tenta de novo após 1 minuto.

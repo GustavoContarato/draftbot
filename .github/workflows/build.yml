@@ -55,9 +55,9 @@ jobs:
           if (Test-Path update_url.txt) { $extra += "--include-data-files=update_url.txt=update_url.txt" }
           python -m nuitka draftbot.py --standalone --assume-yes-for-downloads --output-dir=build `
             --output-filename=DraftBot.exe --windows-icon-from-ico=assets/draftbot.ico `
-            --include-data-files=index.html=index.html @extra `
+            --include-data-files=index.html=index.html --include-data-files=assets/draftbot.ico=assets/draftbot.ico @extra `
             --company-name=DraftBot --product-name=DraftBot --file-version=$v --product-version=$v `
-            --file-description="DraftBot - assistente de selecao de campeoes" --windows-console-mode=force
+            --file-description="DraftBot - assistente de selecao de campeoes" --windows-console-mode=attach
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Conferir se o .exe abre (autoteste)
@@ -65,8 +65,12 @@ jobs:
           DRAFTBOT_DATA: ${{ runner.temp }}\draftbot-data
           DRAFTBOT_PORT: "8791"
         run: |
-          .\build\draftbot.dist\DraftBot.exe --selftest
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force $env:DRAFTBOT_DATA | Out-Null
+          # sem console próprio, o PowerShell não espera o .exe sozinho: Start-Process -Wait
+          $p = Start-Process -FilePath .\build\draftbot.dist\DraftBot.exe -ArgumentList "--selftest" -Wait -PassThru -NoNewWindow
+          $r = Get-Content -Raw -ErrorAction SilentlyContinue (Join-Path $env:DRAFTBOT_DATA "selftest.txt")
+          Write-Output "saída: $($p.ExitCode) · $r"
+          if ($p.ExitCode -ne 0 -or -not ($r -like "SELFTEST OK*executável*")) { exit 1 }
 
       - name: Montar o pacote .zip
         run: |
