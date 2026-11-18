@@ -1271,11 +1271,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         # só a própria página pode pedir alterações: exige o cabeçalho X-DraftBot,
         # que um site externo não consegue enviar sem a permissão do programa
+        try:
+            n = min(int(self.headers.get("Content-Length", 0)), 1_000_000)
+        except ValueError:
+            n = 0
+        raw = self.rfile.read(n) if n > 0 else b""     # lê antes de responder (no Windows, evita conexão cortada)
         if not self._host_ok() or self.headers.get("X-DraftBot") != "1":
             return self._send(403, {"ok": False, "error": "não permitido"})
-        n = int(self.headers.get("Content-Length", 0))
         try:
-            body = json.loads(self.rfile.read(n) or b"{}")
+            body = json.loads(raw or b"{}")
         except Exception:
             return self._send(400, {"ok": False, "error": "pedido inválido"})
         if self.path == "/api/runes":
