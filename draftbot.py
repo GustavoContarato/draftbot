@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.5.1"
+VERSION = "2.5.2"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -1125,17 +1125,11 @@ SERVER = {"srv": None}
 
 
 def cleanup_old_unpacked():
-    """O .exe de arquivo único se descompacta em %LOCALAPPDATA%\\DraftBot\\programa\\<versão>;
-    apaga as pastas de versões anteriores."""
+    """A 2.5.1 se descompactava em %LOCALAPPDATA%\\DraftBot\\programa; essa pasta não é mais usada."""
     import shutil
-    parent = os.path.dirname(HERE)
-    if not (FROZEN and os.path.basename(parent).lower() == "programa"
-            and os.path.basename(os.path.dirname(parent)).lower() == "draftbot"):
-        return
-    for name in os.listdir(parent):
-        full = os.path.join(parent, name)
-        if name != os.path.basename(HERE) and re.fullmatch(r"\d+(\.\d+){1,3}", name) and os.path.isdir(full):
-            shutil.rmtree(full, ignore_errors=True)
+    old = os.path.join(DATA_DIR, "programa")
+    if FROZEN and os.path.isdir(old) and not os.path.abspath(HERE).startswith(os.path.abspath(old)):
+        shutil.rmtree(old, ignore_errors=True)
 
 
 def cleanup_after_update():
@@ -1259,8 +1253,16 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path in ("/", "/index.html"):
-            with open(PAGE, "rb") as f:
-                return self._send(200, f.read(), "text/html; charset=utf-8")
+            try:
+                with open(PAGE, "rb") as f:
+                    return self._send(200, f.read(), "text/html; charset=utf-8")
+            except OSError as e:
+                log("Página não encontrada:", e)
+                msg = ("<!doctype html><meta charset='utf-8'><body style='background:#000;color:#eee;font:15px sans-serif;"
+                       "padding:40px'><h2 style='color:#e33'>DraftBot: arquivos do programa incompletos</h2>"
+                       "<p>Feche o DraftBot, baixe o .zip de novo e extraia numa pasta nova. "
+                       "Se o antivírus apagou algum arquivo, libere a pasta do DraftBot nele.</p></body>")
+                return self._send(500, msg.encode("utf-8"), "text/html; charset=utf-8")
         if u.path == "/favicon.ico":
             try:
                 with open(ICON, "rb") as f:

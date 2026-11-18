@@ -53,9 +53,8 @@ jobs:
           $v = python tools/check_version.py
           $extra = @()
           if (Test-Path update_url.txt) { $extra += "--include-data-files=update_url.txt=update_url.txt" }
-          # arquivo único; descompacta uma vez por versão em %LOCALAPPDATA%\DraftBot\programa\<versão>
+          # arquivo único; a cada abertura se descompacta numa pasta temporária nova (apagada ao fechar)
           python -m nuitka draftbot.py --onefile --assume-yes-for-downloads --output-dir=build `
-            --onefile-tempdir-spec="{CACHE_DIR}/DraftBot/programa/{VERSION}" `
             --output-filename=DraftBot.exe --windows-icon-from-ico=assets/draftbot.ico `
             --include-data-files=index.html=index.html --include-data-files=assets/draftbot.ico=assets/draftbot.ico @extra `
             --company-name=DraftBot --product-name=DraftBot --file-version=$v --product-version=$v `

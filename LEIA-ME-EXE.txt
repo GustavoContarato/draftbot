@@ -1,11 +1,11 @@
-DRAFTBOT 2.5.1 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.5.2 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
 - Extraia o .zip para uma pasta qualquer (ex.: Área de Trabalho ou Documentos).
   Não rode de dentro do .zip.
 - Não precisa instalar nada: o DraftBot.exe é um arquivo só e já leva tudo o
-  que precisa. A primeira abertura de cada versão demora uns segundos a mais.
+  que precisa. Ao abrir, ele leva uns segundos para se preparar.
 - O DraftBot não tem assinatura digital paga. Nas primeiras vezes o Windows
   pode mostrar "O Windows protegeu o computador": clique em
   "Mais informações" > "Executar assim mesmo". Se o antivírus bloquear,

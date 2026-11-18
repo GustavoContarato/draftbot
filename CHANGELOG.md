@@ -1,5 +1,9 @@
 # Mudanças
 
+## v2.5.2
+- Corrigido: em alguns PCs a 2.5.1 abria a janela com "This page isn't working" (pasta interna incompleta). Agora o programa se prepara do zero a cada abertura.
+- Se faltar algum arquivo do programa, a janela explica o que fazer em vez de ficar em branco.
+
 ## v2.5.1
 - Pasta organizada: o DraftBot agora é um único arquivo (DraftBot.exe), junto só do LEIA-ME.
 
