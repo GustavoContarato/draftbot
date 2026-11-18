@@ -1475,7 +1475,15 @@ def main():
         return
     SERVER["srv"] = srv
     log(f"DraftBot {VERSION} rodando em {url}.")
-    cleanup_after_update()
+
+    def cleanup_loop():
+        # o .exe antigo pode levar alguns segundos para fechar de vez; tenta de novo por até 1 minuto
+        for _ in range(12):
+            cleanup_after_update()
+            if not os.path.exists(os.path.join(DATA_DIR, "limpar_antigos.json")):
+                return
+            time.sleep(5)
+    threading.Thread(target=cleanup_loop, daemon=True).start()
 
     def warm():
         try:

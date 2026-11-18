@@ -81,7 +81,7 @@ try:
     assert os.path.exists(os.path.join(app, "marcador-99.txt")), "arquivos não foram trocados"
     assert open(os.path.join(app, "LEIA-ME.txt"), encoding="utf-8").read() == "leia-me novo"
     print("pasta do programa:", sorted(os.listdir(app)))
-    left = [f for f in os.listdir(app) if ".draftbot-antigo" in f]
+    left = wait(lambda: not [f for f in os.listdir(app) if ".draftbot-antigo" in f], 40, "apagar os arquivos antigos") and []
     print("antigos que sobraram:", left)
     assert not left, "arquivos antigos não foram apagados"
     print("E2E OK: atualização baixada, conferida, instalada e programa reaberto")
