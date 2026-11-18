@@ -9,10 +9,13 @@ pede a atualização pela API e confere: arquivos trocados, programa reaberto, r
 import hashlib, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
 import urllib.request, zipfile
 
-dist = os.path.abspath(sys.argv[1])
+exe_src = os.path.abspath(sys.argv[1])
 root = tempfile.mkdtemp(prefix="draftbot-e2e-")
 app = os.path.join(root, "Área de Trabalho", "DraftBot")
-shutil.copytree(dist, app)
+os.makedirs(app)
+shutil.copy(exe_src, os.path.join(app, "DraftBot.exe"))
+with open(os.path.join(app, "LEIA-ME.txt"), "w", encoding="utf-8") as f:
+    f.write("leia-me antigo")
 data = os.path.join(root, "dados")
 
 # pacote "novo": o mesmo programa + um arquivo marcador
@@ -20,10 +23,8 @@ pub = os.path.join(root, "publicado")
 os.makedirs(pub)
 zpath = os.path.join(pub, "DraftBot-v99.0.0-windows.zip")
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-    for r, _d, fs in os.walk(dist):
-        for f in fs:
-            full = os.path.join(r, f)
-            z.write(full, os.path.join("DraftBot", os.path.relpath(full, dist)))
+    z.write(exe_src, "DraftBot/DraftBot.exe")
+    z.writestr("DraftBot/LEIA-ME.txt", "leia-me novo")
     z.writestr("DraftBot/marcador-99.txt", "versão nova")
 sha = hashlib.sha256(open(zpath, "rb").read()).hexdigest()
 
@@ -78,6 +79,8 @@ try:
     print("depois:", v["updated"])
     assert v["updated"] == {"result": "ok", "version": "99.0.0"}, v
     assert os.path.exists(os.path.join(app, "marcador-99.txt")), "arquivos não foram trocados"
+    assert open(os.path.join(app, "LEIA-ME.txt"), encoding="utf-8").read() == "leia-me novo"
+    print("pasta do programa:", sorted(os.listdir(app)))
     left = [f for f in os.listdir(app) if ".draftbot-antigo" in f]
     print("antigos que sobraram:", left)
     assert not left, "arquivos antigos não foram apagados"

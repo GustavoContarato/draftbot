@@ -19,12 +19,21 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
 HERE = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))   # onde está a página
-APP_DIR = os.path.dirname(os.path.abspath(sys.argv[0])) if FROZEN else HERE           # onde está o .exe / .py
+def _app_dir():
+    """Pasta onde está o DraftBot.exe (no .exe de arquivo único, não a pasta temporária de onde ele roda)."""
+    c = globals().get("__compiled__")
+    d = getattr(c, "containing_dir", None) if c is not None else None
+    if d:
+        return os.path.abspath(d)
+    return os.path.dirname(os.path.abspath(sys.argv[0])) if FROZEN else HERE
+
+
+APP_DIR = _app_dir()                                                                  # onde está o .exe / .py
 # Dados (cache, registro): ao lado do script; no .exe, numa pasta do usuário que sempre aceita gravação
 DATA_DIR = os.environ.get("DRAFTBOT_DATA") or (
     os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "DraftBot") if FROZEN else HERE)
@@ -1115,9 +1124,27 @@ def install_update_and_exit(new_dir, version):
 SERVER = {"srv": None}
 
 
+def cleanup_old_unpacked():
+    """O .exe de arquivo único se descompacta em %LOCALAPPDATA%\\DraftBot\\programa\\<versão>;
+    apaga as pastas de versões anteriores."""
+    import shutil
+    parent = os.path.dirname(HERE)
+    if not (FROZEN and os.path.basename(parent).lower() == "programa"
+            and os.path.basename(os.path.dirname(parent)).lower() == "draftbot"):
+        return
+    for name in os.listdir(parent):
+        full = os.path.join(parent, name)
+        if name != os.path.basename(HERE) and re.fullmatch(r"\d+(\.\d+){1,3}", name) and os.path.isdir(full):
+            shutil.rmtree(full, ignore_errors=True)
+
+
 def cleanup_after_update():
     """Na abertura seguinte: apaga os arquivos antigos e a pasta temporária da atualização."""
     import shutil
+    try:
+        cleanup_old_unpacked()
+    except OSError:
+        pass
     f = os.path.join(DATA_DIR, "limpar_antigos.json")
     try:
         with open(f, encoding="utf-8") as h:
@@ -1397,6 +1424,8 @@ def selftest():
     assert "DRAFT<b>BOT</b>" in get("/"), "página não encontrada"
     assert parse_compact('class X: a,b\n\nX("ok",[1,2])') == {"a": "ok", "b": [1, 2]}
     assert "DraftBot" in json.loads(get("/api/diag"))["data"]
+    if FROZEN:
+        assert os.path.isfile(os.path.join(APP_DIR, "DraftBot.exe")), f"pasta do programa errada: {APP_DIR}"
     with urllib.request.urlopen(base + "/favicon.ico", timeout=5) as r:
         assert r.status == 200 and r.read(4) == b"\x00\x00\x01\x00", "ícone não encontrado"
     srv.shutdown()

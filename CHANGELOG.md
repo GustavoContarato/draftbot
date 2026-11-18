@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.5.1
+- Pasta organizada: o DraftBot agora é um único arquivo (DraftBot.exe), junto só do LEIA-ME.
+
 ## v2.5.0
 - Atualização automática: o aviso de versão nova ganhou o botão "Atualizar agora", que baixa, confere e instala a versão nova e reabre o DraftBot. Se algo falhar, continua na versão anterior.
 
