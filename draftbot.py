@@ -1103,12 +1103,8 @@ def install_update_and_exit(new_dir, version):
             Window.proc.wait(5)
         except Exception:
             pass
-    if SERVER["srv"] is not None:          # libera a porta antes de abrir a versão nova
-        try:
-            SERVER["srv"].shutdown()
-            SERVER["srv"].server_close()
-        except Exception:
-            pass
+    # A versão nova tenta ocupar a porta por até 15 s; ela fica livre quando este processo sai (logo abaixo).
+    # (Não usar srv.shutdown aqui: o programa principal terminaria antes de abrir a versão nova.)
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     args = [a for a in sys.argv[1:] if a != "--apos-atualizar"] + ["--apos-atualizar"]
     subprocess.Popen([os.path.join(APP_DIR, "DraftBot.exe")] + args, cwd=APP_DIR,
@@ -1304,7 +1300,9 @@ class Handler(BaseHTTPRequestHandler):
                 log("Atualização falhou:", e)
                 return self._send(200, {"ok": False, "error": str(e)})
             self._send(200, {"ok": True, "version": info.get("version")})
-            threading.Timer(1.5, install_update_and_exit, args=(new_dir, info.get("version", ""))).start()
+            t = threading.Timer(1.5, install_update_and_exit, args=(new_dir, info.get("version", "")))
+            t.daemon = False
+            t.start()
             return
         self._send(404, {"error": "não encontrado"})
 
