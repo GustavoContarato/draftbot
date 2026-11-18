@@ -351,7 +351,8 @@ class Atualizacao(unittest.TestCase):
             z.writestr("DraftBot/index.html", "nova pagina")
             z.writestr("DraftBot/lib/x.dll", b"dll")
         import hashlib
-        self.sha = hashlib.sha256(open(self.zip, "rb").read()).hexdigest()
+        with open(self.zip, "rb") as f:
+            self.sha = hashlib.sha256(f.read()).hexdigest()
         self.old_dl = DB._download
 
         def fake_download(url, dest):
@@ -425,10 +426,14 @@ class Atualizacao(unittest.TestCase):
         script = os.path.join(self.dir, "aplicar.cmd")
         with open(script, "w", encoding="ascii", newline="\r\n") as f:
             f.write(DB.UPDATER_CMD)
-        espera = subprocess.Popen(["ping", "-n", "3", "127.0.0.1"], stdout=subprocess.DEVNULL)
+        espera = subprocess.Popen(["ping", "-n", "5", "127.0.0.1"], stdout=subprocess.DEVNULL)   # ~4 s
         t0 = time.time()
-        subprocess.run(DB.updater_command(script, src, dst, bak, status, espera.pid, "9.9.9"), timeout=90)
-        self.assertGreater(time.time() - t0, 1.0)                        # esperou o programa antigo fechar
+        flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS          # como o DraftBot lança
+        p = subprocess.Popen(DB.updater_command(script, src, dst, bak, status, espera.pid, "9.9.9"),
+                             creationflags=flags, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        p.wait(timeout=90)
+        self.assertGreater(time.time() - t0, 3.0)                        # esperou o programa antigo fechar
         self.assertEqual(open(status).read().split(), ["ok", "9.9.9"])
         self.assertEqual(open(os.path.join(dst, "lib", "x.dll")).read(), "novo")
         self.assertTrue(os.path.exists(os.path.join(dst, "DraftBot.exe")))

@@ -1066,7 +1066,7 @@ tasklist /FI "PID eq %PID%" /NH 2>nul | find " %PID% " >nul
 if errorlevel 1 goto copia
 set /a N+=1
 if %N% GEQ 60 goto copia
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul
 goto espera
 :copia
 robocopy "%SRC%" "%DST%" /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP >nul
