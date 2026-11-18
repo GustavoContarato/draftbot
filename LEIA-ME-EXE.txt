@@ -1,0 +1,78 @@
+DRAFTBOT 2.2 — assistente de seleção de campeões (todas as rotas)
+=================================================================
+
+INSTALAÇÃO (uma vez)
+- Extraia o .zip para uma pasta qualquer (ex.: Área de Trabalho ou Documentos).
+  Não rode de dentro do .zip. Mantenha todos os arquivos da pasta juntos.
+- Não precisa instalar nada: o DraftBot.exe já leva tudo o que precisa.
+- O DraftBot não tem assinatura digital paga. Nas primeiras vezes o Windows
+  pode mostrar "O Windows protegeu o computador": clique em
+  "Mais informações" > "Executar assim mesmo". Se o antivírus bloquear,
+  é um alarme falso comum em programas feitos em Python; você pode liberar a
+  pasta do DraftBot no antivírus.
+
+COMO USAR
+1. Abra o cliente do League of Legends e faça login.
+2. Dê dois cliques em "DraftBot.exe". Uma janela preta abre
+   (deixe-a aberta) e a página abre no navegador (http://127.0.0.1:8765).
+   Se você abrir de novo sem querer, ele só reabre a página.
+3. Na seleção de campeões a página se preenche sozinha: sua rota, picks,
+   bans, a rota provável de cada inimigo, se você está às cegas ou como
+   counter, e quando é a sua vez de banir ou escolher (com sugestão de ban).
+   - Rota de inimigo errada? Digite o campeão na rota certa: ela fica
+     fixada (●) até o fim daquela seleção. Clique no ● para soltar.
+   - Em ARAM, Arena e outros modos fora do Summoner's Rift, o DraftBot
+     avisa e não recomenda.
+
+A CHANCE ESTIMADA
+Cada campeão recebe uma chance estimada de vitória (ex.: 52,3%), calculada
+com estatísticas de ranqueadas do patch atual (OP.GG):
+- taxa de vitória do campeão na rota (puxada para 50% se tiver poucos jogos);
+- resultado real contra o seu oponente de rota, ou, às cegas, o risco de
+  levar counter;
+- penalidade para picks fora da rota (a taxa deles vem de especialistas);
+- sinergia medida com cada aliado já escolhido;
+- composição dos dois times;
+É uma estimativa para comparar opções, não uma previsão exata.
+A coluna Recomendações é igual para qualquer conta: só depende do patch e da
+seleção. Campeões que você não tem aparecem marcados ("você não tem"), não
+escondidos. A coluna Seu pool soma a isso a sua experiência e o seu resultado
+com cada campeão.
+
+SEU POOL
+O programa lê da conta LOGADA no cliente as suas ranqueadas recentes
+(solo/duo, flex e Clash; normais e rápida não contam), a maestria e os
+campeões que você possui. Ele relê ao abrir, ao trocar de conta (mesmo com
+o app aberto) e a cada nova seleção. Cada campeão mostra seus jogos, vitórias,
+KDA, solo/flex, os últimos resultados (V/D) e a maestria. O que você não pode
+escolher agora aparece apagado ("banido/escolhido" ou "você não tem").
+
+RUNAS E BUILD
+Passe o mouse num campeão no cliente (ou clique em "Build") para ver as runas,
+os itens, os feitiços e a ordem das habilidades mais vencedores daquele
+confronto, com o número de partidas. Em confronto raro, usa a build geral do
+campeão e avisa. Os itens situacionais respondem ao time inimigo deste jogo.
+- "Enviar runas": cria e ativa a página "DraftBot · <campeão>".
+- "Enviar build para a loja": cria o conjunto de itens "DraftBot".
+- "enviar ao travar" (no topo): faz os dois sozinho quando você trava o pick.
+
+JANELA COMPACTA
+O botão "Janela compacta" abre uma janela estreita só com o essencial, para
+deixar ao lado do cliente.
+
+DADOS E PRIVACIDADE
+- Estatísticas: API pública da OP.GG, guardadas por 6 h na pasta
+  %LOCALAPPDATA%\DraftBot (cache_opgg.json; o que tiver mais de 2 dias é
+  apagado sozinho). O registro de erros (draftbot.log) fica na mesma pasta.
+- Os dados da sua conta ficam só no seu PC.
+- O programa nunca bane, escolhe ou trava campeões por você e não lê nada
+  durante a partida.
+
+SE ALGO DER ERRADO
+- Clique em "Copiar diagnóstico" no rodapé da página e mande para quem te
+  passou o DraftBot.
+- "Cliente do LoL não encontrado": confira se o cliente está aberto e logado.
+
+NOVAS VERSÕES
+Quando sair uma versão nova, a página do DraftBot mostra um aviso com o link
+para baixar. Basta extrair a versão nova por cima da antiga.

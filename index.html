@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DraftBot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050505;--p:#0c0c0c;--p2:#121212;--ln:#1e1e1e;--ln2:#2a2a2a;--tx:#f2f2f2;--mu:#7d7d7d;--red:#e10600;--red2:#ff3b30;--redd:rgba(225,6,0,.12)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13.5px/1.5 Inter,system-ui,sans-serif}
+.wrap{max-width:1560px;margin:0 auto;padding:20px}
+.lbl{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mu)}
+h2{font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);margin:0 0 12px}
+header{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--ln);margin-bottom:16px}
+.brand{display:flex;align-items:baseline;gap:12px}
+.logo{font-weight:700;font-size:18px;letter-spacing:.18em}
+.logo b{color:var(--red)}
+.patch{font-size:11px;color:var(--mu);border:1px solid var(--ln2);border-radius:99px;padding:2px 9px}
+.ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--ln2);border-radius:8px;overflow:hidden}
+.seg button{background:none;border:0;color:var(--mu);padding:7px 12px;font:600 12px Inter;cursor:pointer;letter-spacing:.04em}
+.seg button+button{border-left:1px solid var(--ln2)}
+.seg button.on{background:var(--red);color:#fff}
+.btn{background:none;color:var(--tx);border:1px solid var(--ln2);border-radius:8px;padding:7px 12px;font:500 12px Inter;cursor:pointer}
+.btn:hover{border-color:var(--red)}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+.btn.pri:hover{background:var(--red2)}
+.btn:disabled{opacity:.4;cursor:default}
+.tgl{display:flex;gap:7px;align-items:center;color:var(--mu);font-size:12px;cursor:pointer}
+.tgl input{accent-color:var(--red)}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)}
+.dot{width:7px;height:7px;border-radius:50%;background:#444;flex:none}
+.dot.on{background:var(--red);box-shadow:0 0 8px var(--red)} .dot.idle{background:#888}
+.sit{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 16px}
+.pill{font-size:12px;padding:5px 10px;border:1px solid var(--ln2);border-radius:99px;color:#cfcfcf}
+.pill.go{border-color:var(--red);color:#fff;background:var(--redd);font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.2fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:1240px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}#poolCard{grid-column:span 2}}
+@media (max-width:900px){.grid{grid-template-columns:1fr}#poolCard{grid-column:auto}}
+.acct{font-size:12px;color:var(--mu);display:flex;gap:8px;align-items:center}
+.acct b{color:var(--tx);font-weight:600}
+.me{font-size:12px;color:#fff;margin-top:3px}
+.me span{color:var(--mu)}
+.rec.off{opacity:.38}
+.cardh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cardh h2{margin-bottom:4px}
+.cardsub{font-size:11.5px;color:var(--mu);margin-bottom:8px}
+.card{background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:16px}
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:520px){.teams{grid-template-columns:1fr}}
+.tname{font-size:12px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.tname:before{content:"";width:3px;height:12px;border-radius:2px;background:#fff}
+.enemy .tname:before{background:var(--red)}
+.slot{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.slot label{width:56px;font-size:11px;color:var(--mu);flex:none}
+.slot.me label{color:#fff;font-weight:600}
+input[type=text]{width:100%;background:var(--bg);border:1px solid var(--ln);color:var(--tx);border-radius:7px;padding:6px 9px;font:13px Inter}
+input[type=text]:focus{outline:none;border-color:var(--red)}
+.slot.me input{border-color:#5a1210}
+input.bad{border-color:#7a2f2a}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.chip{border:1px solid var(--ln2);border-radius:99px;padding:2px 9px;font-size:11.5px;display:inline-flex;gap:6px;color:#cfcfcf}
+.chip b{cursor:pointer;color:var(--mu);font-weight:400}
+.sep{height:1px;background:var(--ln);margin:14px 0}
+.bar{height:4px;border-radius:2px;background:var(--ln);display:flex;overflow:hidden;margin:8px 0 5px}
+.bar span{height:100%}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:5px;border:1px solid var(--ln);color:#bdbdbd}
+.tag.hot{border-color:var(--red);color:#fff}
+.note{font-size:11.5px;color:var(--mu);margin-top:8px}
+.recs{display:flex;flex-direction:column}
+.rec{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--ln)}
+.rec:last-child{border-bottom:0}
+.rk{font-size:12px;color:var(--mu);font-weight:600;text-align:right}
+.rec.top .rk{color:var(--red)}
+.rn{font-weight:600;font-size:14.5px;display:flex;gap:8px;align-items:center}
+.tier{font-size:10px;font-weight:700;border:1px solid var(--ln2);border-radius:4px;padding:0 5px;color:#bdbdbd}
+.tier.t1{border-color:var(--red);color:var(--red)}
+.why{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:3px;font-size:12px}
+.why .p{color:#e8e8e8}.why .p:before{content:"▲ ";color:var(--red);font-size:9px}
+.why .n{color:#8f8f8f}.why .n:before{content:"▼ ";color:#555;font-size:9px}
+.why .z{color:var(--mu)}
+.sc{text-align:right}
+.sc .v{font-size:20px;font-weight:700;line-height:1}
+.sc .btn{margin-top:6px;padding:4px 10px}
+.rec.top .sc .v{color:var(--red)}
+.empty{color:var(--mu);padding:22px;text-align:center;border:1px dashed var(--ln2);border-radius:10px;font-size:12.5px}
+.avoid{font-size:12px;color:var(--mu);margin-top:10px}
+.build{margin-top:16px}
+.bh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:flex-end;margin-bottom:12px}
+.bh .t{font-size:20px;font-weight:700}
+.bh .s{font-size:12px;color:var(--mu)}
+.kpis{display:flex;gap:18px;flex-wrap:wrap}
+.kpi .v{font-size:16px;font-weight:700}
+.kpi .v.red{color:var(--red)}
+.tip{font-size:12.5px;border-left:2px solid var(--red);padding:6px 10px;background:var(--p2);border-radius:0 6px 6px 0;margin-bottom:12px;color:#ddd}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:680px){.cols{grid-template-columns:1fr}}
+.box{background:var(--p2);border:1px solid var(--ln);border-radius:10px;padding:13px}
+.sub{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);margin:12px 0 5px;font-weight:600}
+.sub:first-child{margin-top:0}
+.row{padding:5px 0;border-bottom:1px solid var(--ln);font-size:13px;display:flex;justify-content:space-between;gap:10px}
+.row:last-child{border-bottom:0}
+.row .m{color:var(--mu);font-size:11.5px;white-space:nowrap}
+.row.ks{font-weight:700}
+.row.ks:before{content:"";width:3px;background:var(--red);margin-right:-4px;border-radius:2px}
+.sitem{font-size:12.5px;padding:7px 9px;border:1px solid var(--ln2);border-radius:7px;margin-bottom:5px}
+.sitem b{color:#fff}
+.sitem span{color:var(--mu)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.msg{font-size:12px;color:var(--mu)}
+.alt{font-size:11.5px;color:var(--mu);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+footer{color:var(--mu);font-size:11.5px;margin-top:22px;line-height:1.7;border-top:1px solid var(--ln);padding-top:14px}
+footer a{color:#ddd}
+.banner{border:1px solid var(--ln2);border-left:2px solid var(--red);padding:10px 12px;border-radius:8px;font-size:12.5px;color:#ccc;margin-bottom:14px}
+.chance{font-size:20px;font-weight:700;line-height:1}
+.chance small{display:block;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--mu);text-transform:uppercase;margin-top:3px}
+.rec.top .chance{color:var(--red)}
+.pin{width:14px;flex:none;text-align:center;cursor:pointer;color:var(--red);font-size:10px}
+.trend{letter-spacing:2px;font-weight:700;font-size:11px}
+.trend .v{color:#fff}.trend .d{color:#5a5a5a}
+.skills{display:grid;grid-template-columns:repeat(18,1fr);gap:2px;margin-top:4px}
+.skills div{font-size:10.5px;text-align:center;padding:3px 0;border-radius:3px;background:var(--bg);color:var(--mu)}
+.skills div.r{background:var(--redd);color:#fff;font-weight:700}
+.skills .lv{background:none;font-size:9px;color:#555;padding:0}
+.warn{font-size:12px;color:#ddd;border:1px dashed var(--ln2);border-radius:7px;padding:7px 9px;margin-bottom:10px}
+.foot{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px}
+textarea.diag{width:100%;height:160px;background:var(--bg);color:#ccc;border:1px solid var(--ln2);border-radius:6px;font:11px monospace;margin-top:8px}
+/* modo compacto */
+body.compact .wrap{padding:10px;max-width:520px}
+body.compact .grid{grid-template-columns:1fr!important}
+body.compact #draftCard,body.compact footer,body.compact .ctrls .seg,body.compact #resetBtn,body.compact #compactBtn,body.compact .why .z{display:none}
+body.compact #poolCard{grid-column:auto!important}
+body.compact header{padding-bottom:10px;margin-bottom:10px}
+body.compact .rec{padding:7px 2px}
+body.compact .build .cols{grid-template-columns:1fr}
+body.compact .late,body.compact .skillbox{display:none}
+#fullLink{display:none}
+body.compact #fullLink{display:inline}
+</style>
+
+<body>
+<div class="wrap">
+<header>
+  <div class="brand"><div class="logo">DRAFT<b>BOT</b></div><span class="patch" id="patch">patch —</span>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusTxt">Modo manual</span></div><div class="acct" id="acct"></div></div>
+  <div class="ctrls">
+    <div class="seg" id="roleSeg"></div>
+    <label class="tgl" id="autoWrap" style="display:none"><input type="checkbox" id="autoChk" checked>automático</label>
+    <label class="tgl" id="sendWrap" style="display:none" title="Cria a página de runas e o conjunto de itens assim que você travar o campeão"><input type="checkbox" id="autoSend">enviar ao travar</label>
+    <button class="btn" id="compactBtn" style="display:none">Janela compacta</button>
+    <span class="alt" id="fullLink">tela cheia</span>
+    <button class="btn" id="resetBtn">Limpar</button>
+  </div>
+</header>
+<div id="updBanner"></div><div id="banner"></div>
+<div class="sit" id="sit"></div>
+
+<div class="grid">
+  <section class="card" id="draftCard">
+    <h2>Seleção</h2>
+    <div class="teams">
+      <div class="team"><div class="tname">Seu time</div><div id="allySlots"></div></div>
+      <div class="team enemy"><div class="tname">Inimigos</div><div id="enemySlots"></div></div>
+    </div>
+    <div class="note" id="pinNote"></div>
+    <div class="sep"></div>
+    <div class="lbl">Bans</div>
+    <input type="text" id="banInput" list="champList" placeholder="Adicionar ban + Enter" style="margin-top:7px">
+    <div class="chips" id="banChips"></div>
+    <div class="sep"></div>
+    <div id="analysis"></div>
+  </section>
+  <section class="card">
+    <h2 id="recTitle">Recomendações</h2>
+    <div class="cardsub" id="recSub"></div>
+    <div id="recs" class="recs"></div>
+    <div id="avoid" class="avoid"></div>
+  </section>
+  <section class="card" id="poolCard">
+    <div class="cardh"><h2 id="poolTitle">Seu pool</h2><span class="alt" id="poolRefresh" style="display:none">atualizar</span></div>
+    <div class="cardsub" id="poolSub"></div>
+    <div id="pool" class="recs"></div>
+  </section>
+</div>
+<div id="build" class="build"></div>
+
+<footer>
+  <b>Chance estimada:</b> parte da taxa de vitória real do campeão na rota no patch atual (puxada para 50% quando há poucas partidas) e ajusta pelo confronto contra o seu oponente de rota, pelo risco de ser counterado quando você escolhe às cegas, pela sinergia medida com cada aliado e pela composição dos dois times. A coluna <b>Recomendações</b> é igual para qualquer conta: só depende do patch e desta seleção (campeões que você não tem aparecem marcados, não escondidos). A coluna <b>Seu pool</b> soma a isso a sua experiência e o seu desempenho em ranqueadas com cada campeão (solo/duo, flex e Clash). É uma estimativa para comparar opções, não uma previsão exata.
+  Estatísticas de partidas ranqueadas da <a href="https://op.gg" target="_blank" rel="noopener">OP.GG</a>, atualizadas diariamente.
+  <div class="foot"><span id="verTxt">DraftBot</span><button class="btn" id="diagBtn" style="display:none">Copiar diagnóstico</button><span class="msg" id="diagMsg"></span></div>
+  <div id="diagBox"></div>
+</footer>
+</div>
+<datalist id="champList"></datalist>
+<script>
+/* ===================== 1. Campeões: dano, características, rotas ===================== */
+const RAW = `Aatrox|AD|THEDC
+Ahri|AP|ADCR
+Akali|AP|ADV
+Akshan|AD|AKDVR
+Alistar|AP|TECH
+Ambessa|AD|TDHE
+Amumu|AP|TEC
+Anivia|AP|PCR
+Annie|AP|ACR
+Aphelios|AD|KR
+Ashe|AD|KCRE
+Aurelion Sol|AP|PR
+Aurora|AP|ADR
+Azir|AP|RPC
+Bard|AP|CSR
+Bel'Veth|AD|DHK
+Blitzcrank|AP|CE
+Brand|AP|PCR
+Braum|AD|TCS
+Briar|AD|DHE
+Caitlyn|AD|KRP
+Camille|AD|DEC
+Cassiopeia|AP|RC
+Cho'Gath|AP|TCH
+Corki|MIX|PR
+Darius|AD|THC
+Diana|AP|ADEC
+Dr. Mundo|AD|TH
+Draven|AD|KR
+Ekko|AP|ADC
+Elise|AP|ADCR
+Evelynn|AP|AVC
+Ezreal|AD|PRD
+Fiddlesticks|AP|ECHR
+Fiora|AD|DH
+Fizz|AP|ADC
+Galio|AP|TEC
+Gangplank|AD|P
+Garen|AD|T
+Gnar|AD|TCE
+Gragas|AP|TEC
+Graves|AD|AK
+Gwen|AP|DH
+Hecarim|AD|TEDC
+Heimerdinger|AP|PRC
+Hwei|AP|PRC
+Illaoi|AD|TH
+Irelia|AD|DHC
+Ivern|AP|SC
+Janna|AP|SC
+Jarvan IV|AD|TEC
+Jax|AD|TD
+Jayce|AD|PR
+Jhin|AD|KPR
+Jinx|AD|KR
+K'Sante|AD|TEC
+Kai'Sa|MIX|KDR
+Kalista|AD|KR
+Karma|AP|SPR
+Karthus|AP|PR
+Kassadin|AP|AD
+Katarina|AP|AD
+Kayle|MIX|KR
+Kayn|AD|ADH
+Kennen|AP|CE
+Kha'Zix|AD|ADV
+Kindred|AD|KR
+Kled|AD|TE
+Kog'Maw|MIX|KR
+LeBlanc|AP|AD
+Lee Sin|AD|DEC
+Leona|AP|TEC
+Lillia|AP|DC
+Lissandra|AP|CE
+Locke|AP|AD
+Lucian|AD|KDR
+Lulu|AP|SCR
+Lux|AP|PCR
+Malphite|AP|TEC
+Malzahar|AP|XCR
+Maokai|AP|TEC
+Master Yi|AD|KDH
+Mel|AP|PR
+Milio|AP|SHR
+Miss Fortune|AD|PR
+Mordekaiser|AP|TH
+Morgana|AP|CR
+Naafiri|AD|AD
+Nami|AP|SCHR
+Nasus|AD|TH
+Nautilus|AP|TEC
+Neeko|AP|ACER
+Nidalee|AP|APR
+Nilah|AD|KDH
+Nocturne|AD|ADEC
+Nunu & Willump|AP|TEC
+Olaf|AD|TH
+Orianna|AP|CR
+Ornn|AP|TEC
+Pantheon|AD|AEC
+Poppy|AD|TC
+Pyke|AD|ACEV
+Qiyana|AD|AC
+Quinn|AD|KRD
+Rakan|AP|ECDS
+Rammus|AP|TEC
+Rek'Sai|AD|DEC
+Rell|AP|TEC
+Renata Glasc|AP|SCR
+Renekton|AD|TDH
+Rengar|AD|ADV
+Riven|AD|DC
+Rumble|AP|P
+Ryze|AP|R
+Samira|AD|KD
+Sejuani|AP|TEC
+Senna|AD|PRS
+Seraphine|AP|PSCR
+Sett|AD|TE
+Shaco|AD|AV
+Shen|AP|TE
+Shyvana|MIX|TD
+Singed|AP|T
+Sion|AD|TEC
+Sivir|AD|KR
+Skarner|AP|TEX
+Smolder|AD|PR
+Sona|AP|SHR
+Soraka|AP|SHR
+Swain|AP|THC
+Sylas|AP|ADH
+Syndra|AP|ACR
+Tahm Kench|AP|TS
+Taliyah|AP|PCR
+Talon|AD|AD
+Taric|AP|TSHC
+Teemo|AP|RPV
+Thresh|AP|ECS
+Tristana|AD|KRD
+Trundle|AD|TH
+Tryndamere|AD|KD
+Twisted Fate|AP|CR
+Twitch|AD|KRV
+Udyr|MIX|TH
+Urgot|AD|TX
+Varus|AD|PRC
+Vayne|AD|KRV
+Veigar|AP|ACR
+Vel'Koz|AP|PR
+Vex|AP|ACR
+Vi|AD|EDC
+Viego|AD|DH
+Viktor|AP|PR
+Vladimir|AP|H
+Volibear|AD|TE
+Warwick|AD|THX
+Wukong|AD|TEV
+Xayah|AD|KR
+Xerath|AP|PR
+Xin Zhao|AD|EDH
+Yasuo|AD|DKC
+Yone|AD|DC
+Yorick|AD|TH
+Yunara|AD|KR
+Yuumi|AP|SH
+Zaahen|AD|TDH
+Zac|AP|TEH
+Zed|AD|AD
+Zeri|AD|KR
+Ziggs|AP|PR
+Zilean|AP|SCR
+Zoe|AP|APR
+Zyra|AP|PCR`;
+const CH={}; RAW.trim().split("\n").forEach(l=>{const [n,d,t]=l.split("|");CH[n]={n,dmg:d,t};});
+const ALL=Object.keys(CH);
+const norm=s=>(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const BYKEY={}; ALL.forEach(n=>BYKEY[norm(n)]=n);
+Object.assign(BYKEY,{nunu:"Nunu & Willump",nunuewillump:"Nunu & Willump",nunuwillump:"Nunu & Willump",mundo:"Dr. Mundo",jarvan:"Jarvan IV",j4:"Jarvan IV",mf:"Miss Fortune",tf:"Twisted Fate",renata:"Renata Glasc",kog:"Kog'Maw",tahm:"Tahm Kench",asol:"Aurelion Sol",xin:"Xin Zhao",monkeyking:"Wukong",belveth:"Bel'Veth",ksante:"K'Sante"});
+const resolve=s=>BYKEY[norm(s)]||null;
+const has=(n,t)=>!!(CH[n]&&CH[n].t.includes(t));
+const ROLE_RAW=`Aatrox:t|Ahri:m|Akali:mt|Akshan:mt|Alistar:s|Ambessa:tj|Amumu:js|Anivia:m|Annie:ms|Aphelios:b|Ashe:bs|Aurelion Sol:m|Aurora:mt|Azir:m|Bard:s|Bel'Veth:j|Blitzcrank:s|Brand:smj|Braum:s|Briar:j|Caitlyn:b|Camille:t|Cassiopeia:mt|Cho'Gath:tm|Corki:mb|Darius:t|Diana:jm|Dr. Mundo:t|Draven:b|Ekko:jm|Elise:j|Evelynn:j|Ezreal:b|Fiddlesticks:js|Fiora:t|Fizz:m|Galio:ms|Gangplank:t|Garen:t|Gnar:t|Gragas:tj|Graves:j|Gwen:t|Hecarim:j|Heimerdinger:mst|Hwei:ms|Illaoi:t|Irelia:tm|Ivern:j|Janna:s|Jarvan IV:j|Jax:tj|Jayce:tm|Jhin:b|Jinx:b|K'Sante:t|Kai'Sa:b|Kalista:b|Karma:sm|Karthus:jm|Kassadin:m|Katarina:m|Kayle:tm|Kayn:j|Kennen:t|Kha'Zix:j|Kindred:j|Kled:t|Kog'Maw:b|LeBlanc:m|Lee Sin:j|Leona:s|Lillia:j|Lissandra:m|Locke:m|Lucian:bm|Lulu:s|Lux:sm|Malphite:t|Malzahar:m|Maokai:sjt|Master Yi:j|Mel:ms|Milio:s|Miss Fortune:b|Mordekaiser:t|Morgana:s|Naafiri:m|Nami:s|Nasus:t|Nautilus:s|Neeko:ms|Nidalee:j|Nilah:b|Nocturne:j|Nunu & Willump:j|Olaf:tj|Orianna:m|Ornn:t|Pantheon:tsmj|Poppy:tjs|Pyke:s|Qiyana:mj|Quinn:t|Rakan:s|Rammus:j|Rek'Sai:j|Rell:s|Renata Glasc:s|Renekton:t|Rengar:jt|Riven:t|Rumble:tm|Ryze:mt|Samira:b|Sejuani:j|Senna:sb|Seraphine:sbm|Sett:ts|Shaco:js|Shen:t|Shyvana:j|Singed:t|Sion:t|Sivir:b|Skarner:jt|Smolder:b|Sona:s|Soraka:s|Swain:smb|Sylas:mj|Syndra:m|Tahm Kench:st|Taliyah:mj|Talon:mj|Taric:s|Teemo:t|Thresh:s|Tristana:bm|Trundle:tj|Tryndamere:t|Twisted Fate:m|Twitch:bj|Udyr:j|Urgot:t|Varus:b|Vayne:bt|Veigar:m|Vel'Koz:sm|Vex:m|Vi:j|Viego:j|Viktor:m|Vladimir:mt|Volibear:tj|Warwick:jt|Wukong:jt|Xayah:b|Xerath:sm|Xin Zhao:j|Yasuo:mtb|Yone:mt|Yorick:t|Yunara:b|Yuumi:s|Zaahen:t|Zac:j|Zed:mj|Zeri:b|Ziggs:bm|Zilean:sm|Zoe:m|Zyra:s`;
+const ROLES_OF={}; ROLE_RAW.split("|").forEach(x=>{const [n,r]=x.split(":");ROLES_OF[n]=r;});
+// campeões lançados depois desta lista entram automaticamente (vindos do cliente ou da OP.GG)
+function registerChamp(name,alias){
+  if(!name||resolve(name)||(alias&&resolve(alias))) { if(alias&&!resolve(alias)&&resolve(name)) BYKEY[norm(alias)]=resolve(name); return false; }
+  CH[name]={n:name,dmg:"MIX",t:"",novo:true}; ALL.push(name); BYKEY[norm(name)]=name; if(alias) BYKEY[norm(alias)]=name; return true;
+}
+const refreshList=()=>{document.getElementById("champList").innerHTML=ALL.slice().sort().map(n=>`<option value="${n}">`).join("");};
+
+const ROLES=[["top","Top"],["jg","Jungle"],["mid","Mid"],["adc","ADC"],["sup","Suporte"]];
+const OPOS={top:"top",jg:"jungle",mid:"mid",adc:"adc",sup:"support"};
+const CODE={top:"t",jg:"j",mid:"m",adc:"b",sup:"s"};
+const RLABEL=Object.fromEntries(ROLES);
+const TANK_SHRED=["Vayne","Kog'Maw","Kalista","Aphelios","Varus","Twitch","Kai'Sa","Yunara","Fiora","Gwen","Cassiopeia","Brand","Lillia","Trundle","Mordekaiser","Darius","Bel'Veth","Master Yi","Vladimir","Kayle","Zeri"];
+
+/* ===================== 2. Estado ===================== */
+const EMPTY=()=>({top:"",jg:"",mid:"",adc:"",sup:""});
+let st={role:"adc",ally:EMPTY(),enemy:EMPTY(),bans:[],pins:{}};
+try{const s=JSON.parse(localStorage.getItem("draftbot21")||"null"); if(s&&s.ally) st=Object.assign(st,s);}catch(e){}
+if(!st.pins) st.pins={};
+const save=()=>{try{localStorage.setItem("draftbot21",JSON.stringify(st));}catch(e){}};
+const LIVE=["127.0.0.1","localhost"].includes(location.hostname);
+const D={acct:null,acctPuuid:"",acctLoading:false,acctErr:"",meta:null,version:"",tables:{},syn:{},builds:{},items:{},pending:{},err:{},pickable:null,offMode:"",sentKey:""};
+let previewChamp=null, runeAlt=0, liveD=null;
+let autoSend=false; try{autoSend=localStorage.getItem("draftbotAutoSend")==="1";}catch(e){}
+
+/* ===================== 3. Dados (programa local → cliente e OP.GG) ===================== */
+const RETRY_MS=globalThis.DRAFTBOT_RETRY_MS||60000;      // nova tentativa após falha
+const META_REFRESH_MS=globalThis.DRAFTBOT_META_MS||3600000; // renova as estatísticas a cada hora
+async function api(path){const r=await fetch(path,{cache:"no-store"}); const j=await r.json(); if(!j.ok) throw new Error(j.error||"erro"); return j.data;}
+function want(kind,key,path){
+  if(!LIVE) return undefined;
+  const bag=D[kind]; if(bag[key]!==undefined) return bag[key];
+  const pk=kind+"|"+key; if(D.pending[pk]) return undefined;
+  D.pending[pk]=true;
+  api(path).then(v=>{bag[key]=v;delete D.err[pk];})
+    .catch(e=>{bag[key]=null;D.err[pk]=e.message;
+      // falhou (internet oscilou, OP.GG fora do ar…): tenta de novo depois de um tempo
+      setTimeout(()=>{ if(bag[key]===null){ delete bag[key]; scheduleUpdate(); } },RETRY_MS); })
+    .finally(()=>{delete D.pending[pk];scheduleUpdate();});
+  return undefined;
+}
+const tableOf=(role,champ)=>want("tables",role+"|"+champ,`/api/table?pos=${OPOS[role]}&champ=${encodeURIComponent(champ)}`);
+const synOf=(champ,role,target)=>want("syn",[champ,role,target].join("|"),`/api/synergy?champ=${encodeURIComponent(champ)}&pos=${OPOS[role]}&target=${OPOS[target]}`);
+const buildOf=(role,champ,opp)=>want("builds",[role,champ,opp||""].join("|"),`/api/build?pos=${OPOS[role]}&champ=${encodeURIComponent(champ)}&opp=${encodeURIComponent(opp||"")}`);
+let upTimer=null; function scheduleUpdate(){clearTimeout(upTimer);upTimer=setTimeout(update,80);}
+const META_IDX={};
+function metaEntry(role,n){ if(!D.meta) return null; const k=role; if(!META_IDX[k]){META_IDX[k]={}; (D.meta.positions[OPOS[role]]||[]).forEach(x=>{const r=resolve(x.champion); if(r) META_IDX[k][r]=x;});} return META_IDX[k][n]||null; }
+async function post(url,body){const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-DraftBot":"1"},body:JSON.stringify(body)});return r.json();}
+
+/* ===================== 4. Interface do draft ===================== */
+refreshList();
+document.getElementById("roleSeg").innerHTML=ROLES.map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("");
+document.querySelectorAll("#roleSeg button").forEach(b=>b.onclick=()=>{st.role=b.dataset.r;previewChamp=null;save();renderSlots();update();});
+function renderSlots(){
+  ["ally","enemy"].forEach(side=>{
+    document.getElementById(side+"Slots").innerHTML=ROLES.map(([k,l])=>{
+      const me=side==="ally"&&k===st.role, v=st[side][k]||"", pinned=side==="enemy"&&v&&st.pins[v]===k;
+      return `<div class="slot ${me?"me":""}"><label>${me?"Você":l}</label><input type="text" list="champList" data-side="${side}" data-k="${k}" value="${v}" placeholder="${me?l:"—"}">${side==="enemy"?`<span class="pin" data-unpin="${v}" title="${pinned?"Rota fixada por você (clique para soltar)":""}">${pinned?"●":""}</span>`:""}</div>`;}).join("");
+  });
+  document.querySelectorAll(".slot input").forEach(inp=>{
+    const mark=()=>inp.classList.toggle("bad",!!inp.value&&!resolve(inp.value)); mark();
+    inp.addEventListener("input",()=>{mark(); if(inp.dataset.side==="ally"){const r=resolve(inp.value);st.ally[inp.dataset.k]=r||inp.value;if(inp.dataset.k===st.role)previewChamp=null;save();update();}});
+    inp.addEventListener("change",()=>{const r=resolve(inp.value), side=inp.dataset.side, k=inp.dataset.k;
+      if(side==="enemy"){ // corrigir a rota de um inimigo: o campeão digitado fica fixo nesta rota
+        if(r){ Object.keys(st.pins).forEach(c=>{if(st.pins[c]===k||c===r) delete st.pins[c];}); st.pins[r]=k;
+          ROLES.forEach(([kk])=>{if(st.enemy[kk]===r) st.enemy[kk]="";}); st.enemy[k]=r; }
+        else { if(st.enemy[k]) delete st.pins[st.enemy[k]]; st.enemy[k]=inp.value; }
+        if(LIVE&&liveD) { st.enemy=placeEnemies(liveD.enemy||[]); }
+        save(); renderSlots(); update(); return; }
+      if(r){inp.value=r;st[side][k]=r;save();update();}});
+  });
+  document.querySelectorAll("[data-unpin]").forEach(x=>x.onclick=()=>{const c=x.dataset.unpin; if(c&&st.pins[c]){delete st.pins[c]; if(LIVE&&liveD) st.enemy=placeEnemies(liveD.enemy||[]); save();renderSlots();update();}});
+  document.querySelectorAll("#roleSeg button").forEach(b=>b.classList.toggle("on",b.dataset.r===st.role));
+  document.getElementById("pinNote").textContent=LIVE?"As rotas dos inimigos são deduzidas. Se alguma estiver errada, digite o campeão na rota certa: ela fica fixada (●).":"";
+}
+function renderBans(){
+  document.getElementById("banChips").innerHTML=st.bans.map((b,i)=>`<span class="chip">${b}<b data-i="${i}">×</b></span>`).join("")||`<span class="note" style="margin:0">Nenhum ban.</span>`;
+  document.querySelectorAll("#banChips b").forEach(x=>x.onclick=()=>{st.bans.splice(+x.dataset.i,1);save();renderBans();update();});
+}
+const banIn=document.getElementById("banInput");
+const addBan=()=>{const r=resolve(banIn.value);if(r&&!st.bans.includes(r)){st.bans.push(r);save();renderBans();update();banIn.value="";}};
+banIn.addEventListener("keydown",e=>{if(e.key==="Enter")addBan();}); banIn.addEventListener("change",addBan);
+document.getElementById("resetBtn").onclick=()=>{st={role:st.role,ally:EMPTY(),enemy:EMPTY(),bans:[],pins:{}};previewChamp=null;save();renderSlots();renderBans();update();};
+
+/* ===================== 5. Composição ===================== */
+const teamList=(side,ex)=>ROLES.map(r=>r[0]).filter(k=>k!==ex).map(k=>resolve(st[side][k])).filter(Boolean);
+function analyze(list){
+  let ad=0,ap=0;const c={T:0,A:0,H:0,C:0,E:0,P:0,D:0,K:0,S:0,X:0,V:0};const names={};Object.keys(c).forEach(k=>names[k]=[]);
+  list.forEach(n=>{const x=CH[n];if(!x)return; if(x.dmg==="AD")ad++;else if(x.dmg==="AP")ap++;else{ad+=.5;ap+=.5;}
+    for(const t of x.t) if(c[t]!==undefined){c[t]++;names[t].push(n);} });
+  return {n:list.length,ad,ap,apPct:(ad+ap)?ap/(ad+ap):0,c,names,adA:list.filter(n=>has(n,"A")&&CH[n].dmg==="AD"),apA:list.filter(n=>has(n,"A")&&CH[n].dmg!=="AD")};
+}
+function renderAnalysis(){
+  const e=analyze(teamList("enemy")),el=document.getElementById("analysis");
+  if(!e.n){el.innerHTML=`<div class="lbl">Composição inimiga</div><div class="note">Aparece conforme o inimigo escolhe.</div>`;return;}
+  const adp=Math.round((1-e.apPct)*100);
+  const T=[["T","Linha de frente",2],["A","Burst",2],["D","Mergulho",2],["C","CC pesado",3],["H","Cura",2],["P","Poke",2]].map(([k,l,m])=>`<span class="tag ${e.c[k]>=m?"hot":""}">${l} ${e.c[k]}</span>`);
+  if(e.c.X) T.push(`<span class="tag hot">Supressão: ${e.names.X.join(", ")}</span>`);
+  if(e.c.V) T.push(`<span class="tag hot">Invisíveis: ${e.names.V.join(", ")}</span>`);
+  el.innerHTML=`<div class="lbl">Composição inimiga</div><div class="bar"><span style="width:${adp}%;background:#fff"></span><span style="width:${100-adp}%;background:var(--red)"></span></div>
+  <div class="note" style="margin:0">Físico ${adp}% · Mágico ${100-adp}%</div><div class="tags">${T.join("")}</div>`;
+}
+
+/* ===================== 6. Rotas inimigas deduzidas (respeitando as fixadas) ===================== */
+function roleW(n,role){
+  const e=metaEntry(role,n); if(e && e.role_rate!=null) return Math.max(0.01,e.role_rate);
+  const r=ROLES_OF[n]||""; const i=r.indexOf(CODE[role]); return i<0?0.01:[1,.45,.25,.15][i];
+}
+function inferRoles(names,fixed){
+  const roles=ROLES.map(r=>r[0]); fixed=fixed||{}; const free=roles.filter(r=>!fixed[r]);
+  const list=names.filter(n=>!Object.values(fixed).includes(n)).slice(0,free.length);
+  let best={p:-1,a:{}};
+  (function rec(i,used,a,p){ if(i===list.length){if(p>best.p)best={p,a:Object.assign({},a)};return;}
+    for(const r of free){if(used.has(r))continue;used.add(r);a[r]=list[i];rec(i+1,used,a,p*roleW(list[i],r));used.delete(r);delete a[r];} })(0,new Set(),{},1);
+  return Object.assign(EMPTY(),fixed,best.a);
+}
+function placeEnemies(raw){
+  const names=raw.map(resolve).filter(Boolean); const fixed={};
+  Object.entries(st.pins).forEach(([c,r])=>{ if(names.includes(c)) fixed[r]=c; });
+  return inferRoles(names,fixed);
+}
+
+/* ===================== 7. Chance estimada de vitória ===================== */
+const pct=x=>(x*100).toFixed(1).replace(".",",")+"%";
+const pct0=x=>Math.round(x*100)+"%";
+const pp=x=>(x>=0?"+":"−")+Math.abs(x*100).toFixed(1).replace(".",",")+" p.p.";
+const kfmt=n=>n>=1000?(n/1000).toFixed(n>=10000?0:1).replace(".",",")+" mil":String(n);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function unavailable(n){ // campeões que você não pode escolher agora
+  if(D.pickable&&D.pickable.length) return !D.pickable.includes(n);
+  if(D.acct&&D.acct.owned&&D.acct.owned.length) return !D.acct.owned.includes(n);
+  return false;
+}
+function candidates(role){
+  const taken=new Set([...teamList("ally",role),...teamList("enemy"),...st.bans]);
+  if(D.meta){
+    return (D.meta.positions[OPOS[role]]||[]).filter(e=>!e.is_rip && e.pick_rate>=0.004 && (e.role_rate>=0.12||e.pick_rate>=0.01))
+      .sort((a,b)=>b.pick_rate-a.pick_rate).slice(0,30)
+      .map(e=>resolve(e.champion)).filter(n=>n&&!taken.has(n));
+  }
+  return ALL.filter(n=>(ROLES_OF[n]||"").indexOf(CODE[role])===0 && !taken.has(n));
+}
+function baseOf(role,n){
+  const e=metaEntry(role,n); if(!e) return null;
+  const play=e.play||0, win=e.win!=null?e.win:(e.win_rate||0.5)*play;
+  return {e,play,raw:play?win/play:0.5,p:(win+0.5*25000)/(play+25000),role:e.role_rate==null?1:e.role_rate};
+}
+function blindProfile(role,n){ // quanto ele perde quando o inimigo escolhe um counter
+  const t=tableOf(role,n); if(!t) return t;
+  const rows=t.rows.filter(r=>r.play>0&&resolve(r.name)!==n); const tot=rows.reduce((s,r)=>s+r.play,0); if(!tot) return null;
+  const b=rows.reduce((s,r)=>s+r.win,0)/tot;
+  const w=rows.map(r=>({n:resolve(r.name)||r.name,sh:r.play/tot,wr:(r.win+b*300)/(r.play+300)}));
+  const field=w.reduce((s,x)=>s+x.sh*x.wr,0);
+  const common=w.filter(x=>x.sh>=0.02).sort((a,b)=>a.wr-b.wr); const worst=common.slice(0,3);
+  if(!worst.length) return null;
+  const wavg=worst.reduce((s,x)=>s+x.wr,0)/worst.length;
+  return {gap:field-wavg,worst:worst[0]};
+}
+const BLIND_Q=0.35;          // chance aproximada de o oponente escolher depois e escolher um counter
+let blindDefault=0.012;      // penalidade típica, usada enquanto um campeão ainda não foi avaliado
+const BLIND_TH={};           // por rota: quarto mais estável (lo) e quarto mais arriscado (hi)
+function laneVs(role,n,opp){
+  const t=tableOf(role,opp); if(!t) return t===null?null:undefined;
+  const row=t.rows.find(r=>resolve(r.name)===n); if(!row||!row.play) return {none:true};
+  return {wr:1-row.win/row.play, play:row.play};
+}
+function personalOf(role,n){
+  const A=D.acct; if(!A) return null;
+  const gs=A.games.filter(g=>{const c=resolve(g.champ); return c===n && roleOfGame(g,c)===role;});
+  const m=(A.mastery||[]).find(x=>resolve(x.champ)===n)||null;
+  return {g:gs.length,w:gs.filter(g=>g.win).length,games:gs,m};
+}
+function chanceOf(role,n,personal){
+  const R=[]; const b=baseOf(role,n); let p;
+  let offRole=0;
+  if(b){ p=b.p; R.push(["z",`Tier ${b.e.tier} · ${pct(b.raw)} em ${kfmt(b.play)} jogos`]);
+    if(b.role<0.35){ offRole=-(0.35-b.role)*0.15; R.push(["n",`Fora da rota: só ${pct0(b.role)} dos jogos dele são de ${RLABEL[role]}`]); } }
+  else { p=0.49; R.push(["n","Quase não é jogado nesta rota"]); }
+  const base=p; let laneP=null;
+  // confronto direto ou risco às cegas
+  const opp=resolve(st.enemy[role]); let lane=null;
+  if(opp){
+    const v=laneVs(role,n,opp);
+    if(v&&!v.none){ const adj=(v.wr*v.play+base*2000)/(v.play+2000); lane=adj-base; laneP=adj; p=adj;
+      R.push([adj>=0.512?"p":adj<=0.488?"n":"z",`${pct(v.wr)} contra ${opp} (${kfmt(v.play)} jogos)`]); }
+    else if(v&&v.none) R.push(["z",`Pouco jogado contra ${opp}`]);
+    else if(v===undefined&&LIVE) R.push(["z","carregando confronto…"]);
+  } else {
+    const bp=blindProfile(role,n);
+    if(bp){ const d=-BLIND_Q*bp.gap; p+=d; const th=BLIND_TH[role]||{lo:0.018,hi:0.035};
+      if(bp.worst.wr<0.47||bp.gap>=th.hi) R.push(["n",`Às cegas, pode levar counter de ${bp.worst.n} (${pct(bp.worst.wr)})`]);
+      else if(bp.gap<=th.lo) R.push(["p","Seguro às cegas"]); }
+    else { p-=blindDefault; if(bp===undefined&&LIVE) R.push(["z","avaliando confrontos…"]); }
+  }
+  p+=offRole;   // aplicada depois do confronto: a taxa de quem joga fora da rota vem de especialistas
+  // sinergia medida com aliados já escolhidos
+  ROLES.forEach(([k])=>{ if(k===role) return; const a=resolve(st.ally[k]); if(!a) return;
+    const list=synOf(a,k,role); if(!list) return;
+    const row=list.find(x=>resolve(x.synergy_champion_name)===n); if(!row) return;
+    const ab=baseOf(k,a); const expct=((ab?ab.p:0.5)+base)/2; const P=row.play||0;
+    const d=clamp((row.win_rate-expct)*P/(P+3000),-0.03,0.03); p+=d;
+    if(Math.abs(d)>=0.004) R.push([d>0?"p":"n",`Com ${a}: ${pct(row.win_rate)} juntos`]);
+  });
+  // composição (ajustes pequenos, regras fixas)
+  const al=analyze(teamList("ally",role)), en=analyze(teamList("enemy")), x=CH[n]||{dmg:"MIX",t:""};
+  const adj=(d,cls,txt)=>{p+=d;R.push([cls,txt]);};
+  if(al.n>=2&&role!=="sup"){
+    if(al.ap<=1&&x.dmg!=="AD") adj(0.01,"p","Seu time precisa de dano mágico");
+    else if(al.ad<=1&&x.dmg==="AD") adj(0.008,"p","Seu time precisa de dano físico");
+    if(al.ap>=3&&x.dmg==="AP") adj(-0.008,"n","Seu time já tem muito dano mágico");
+  }
+  if(al.n>=3&&al.c.T===0&&has(n,"T")) adj(0.01,"p","Traz linha de frente");
+  if(al.n>=2&&al.c.E===0&&has(n,"E")) adj(0.008,"p","Traz engage");
+  if(en.n){
+    if(en.c.D+en.c.A>=3){ if(has(n,"S")) adj(0.008,"p","Protege contra mergulho"); if(role==="adc"&&has(n,"K")&&!has(n,"D")) adj(-0.006,"n","Imóvel contra mergulho"); }
+    if(en.c.T>=2&&TANK_SHRED.includes(n)) adj(0.008,"p","Bom contra tanques");
+    if(en.c.P>=3&&has(n,"E")) adj(0.006,"p","Engage contra poke");
+  }
+  if(x.novo) R.push(["z","Campeão novo: sem regras de composição"]);
+  // sua experiência com ele (com a conta lida)
+  const me=personal?personalOf(role,n):null;
+  if(me){
+    const fam=-0.015+0.025*Math.min(1,Math.log(1+me.g)/Math.log(31))+(me.g===0&&me.m&&me.m.points>=100000?0.008:0);
+    let perf=0; if(me.g){ const pw=(me.w+p*10)/(me.g+10); perf=clamp((pw-p)*0.5,-0.04,0.04); }
+    p+=fam+perf;
+    if(me.g===0) R.push(["n",me.m&&me.m.points>=100000?"Sem ranqueadas suas com ele nesta rota (mas tem maestria alta)":"Você não jogou ranqueada com ele nesta rota"]);
+    else if(perf>=0.01) R.push(["p",`Você vai bem com ele: ${pct0(me.w/me.g)} em ${me.g} jogos`]);
+    else if(perf<=-0.01) R.push(["n",`Seu resultado com ele está abaixo: ${pct0(me.w/me.g)} em ${me.g} jogos`]);
+  }
+  return {n,p:clamp(p,0.3,0.7),R,lane,laneP,me};
+}
+function rankRole(role){
+  if(!resolve(st.enemy[role])){ // atualiza a penalidade típica com os campeões já avaliados
+    const gaps=candidates(role).map(n=>blindProfile(role,n)).filter(Boolean).map(b=>b.gap).sort((a,b)=>a-b);
+    if(gaps.length>=5){ blindDefault=BLIND_Q*gaps[Math.floor(gaps.length/2)];
+      BLIND_TH[role]={lo:gaps[Math.floor(gaps.length*0.25)],hi:gaps[Math.floor(gaps.length*0.75)]}; }
+  }
+  return candidates(role).map(n=>chanceOf(role,n)).sort((a,b)=>b.p-a.p);
+}
+const chanceCell=(p,label)=>`<div class="chance">${pct(p)}<small>${label||"chance"}</small></div>`;
+function recRow(x,i,role,opts){
+  const e=metaEntry(role,x.n), mine=resolve(st.ally[role])||previewChamp;
+  const tags=(e?`<span class="tier ${e.tier===1?"t1":""}">T${e.tier}</span>`:"")+(mine===x.n?`<span class="tier t1">ESCOLHIDO</span>`:"")+(opts.extraTag||"");
+  const chips=x.R.filter(r=>r[0]!=="z"||r[1].startsWith("Tier")||r[1].endsWith("…")||r[1].includes(" contra ")).slice(0,opts.max||5);
+  return `<div class="rec ${i===0&&!opts.off?"top":""} ${opts.off?"off":""}"><div class="rk">${opts.off?"–":i+1}</div>
+    <div><div class="rn">${x.n}${tags}</div>${opts.personal||""}
+    ${opts.off?"":`<div class="why">${chips.map(r=>`<span class="${r[0]}">${r[1]}</span>`).join("")}</div>`}</div>
+    <div class="sc">${opts.off?"":chanceCell(x.p)+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
+}
+function renderRecs(){
+  const role=st.role; document.getElementById("recTitle").textContent=`Recomendações · ${RLABEL[role]}`;
+  if(D.offMode){ document.getElementById("recSub").textContent=""; document.getElementById("recs").innerHTML=`<div class="empty">${D.offMode}</div>`; document.getElementById("avoid").innerHTML=""; return; }
+  const list=rankRole(role), opp=resolve(st.enemy[role]);
+  document.getElementById("recSub").textContent=opp?`Counter-pick contra ${opp}`:"Às cegas: o seu oponente ainda não escolheu";
+  const poolSet=new Set(playerPool(role).list.filter(o=>o.g>0||(o.m&&o.m.points>=50000)).map(o=>o.n));
+  document.getElementById("recs").innerHTML=list.slice(0,8).map((x,i)=>recRow(x,i,role,{extraTag:(poolSet.has(x.n)?`<span class="tier">SEU POOL</span>`:"")+(unavailable(x.n)?`<span class="tier">VOCÊ NÃO TEM</span>`:"")})).join("")||`<div class="empty">Sem candidatos disponíveis.</div>`;
+  const bad=opp?list.filter(x=>x.lane!=null&&x.lane<-0.012&&(metaEntry(role,x.n)||{}).pick_rate>=0.02).sort((a,b)=>a.lane-b.lane).slice(0,3):[];
+  document.getElementById("avoid").innerHTML=bad.length?`Evite contra ${opp}: ${bad.map(x=>`${x.n} (${x.R.find(r=>r[1].includes(" contra "))[1].split(" contra ")[0]})`).join(" · ")}`:"";
+}
+
+/* ===================== 7b. Seu pool (conta logada no cliente) ===================== */
+function roleOfGame(g,n){ if(g.pos) return g.pos; const r=(ROLES_OF[n]||"")[0]; return Object.keys(CODE).find(k=>CODE[k]===r)||""; }
+function playerPool(role){
+  const A=D.acct; if(!A) return {list:[],games:0};
+  const by={}; let games=0;
+  A.games.forEach(g=>{const n=resolve(g.champ); if(!n||roleOfGame(g,n)!==role) return; games++;
+    const o=by[n]||(by[n]={n,g:0,w:0,k:0,d:0,a:0,solo:0,flex:0,res:[]}); o.g++; if(g.win)o.w++; o.k+=g.k;o.d+=g.d;o.a+=g.a;
+    if(g.queue===420)o.solo++; else if(g.queue===440)o.flex++; if(o.res.length<5) o.res.push(g.win);});
+  const M={}; (A.mastery||[]).forEach(m=>{const n=resolve(m.champ); if(n) M[n]=m;});
+  (A.mastery||[]).slice().sort((a,b)=>b.points-a.points).slice(0,40).forEach(m=>{const n=resolve(m.champ); if(!n||by[n]||m.points<20000) return;
+    const e=metaEntry(role,n); const ok=e?(e.role_rate>=0.25&&!e.is_rip):(ROLES_OF[n]||"").indexOf(CODE[role])===0;
+    if(ok) by[n]={n,g:0,w:0,k:0,d:0,a:0,solo:0,flex:0,res:[]};});
+  const list=Object.values(by).map(o=>Object.assign(o,{m:M[o.n]||null}))
+    .sort((a,b)=>(b.g-a.g)||((b.m?b.m.points:0)-(a.m?a.m.points:0))).slice(0,12);
+  return {list,games};
+}
+function personalLine(o){
+  const parts=[];
+  if(o.g){ const kda=(o.k+o.a)/Math.max(1,o.d);
+    parts.push(`<b>${o.g} jogo${o.g>1?"s":""}</b> · ${pct0(o.w/o.g)} vitórias · KDA ${kda.toFixed(1).replace(".",",")}`);
+    parts.push(`<span>${[o.solo?`solo ${o.solo}`:"",o.flex?`flex ${o.flex}`:""].filter(Boolean).join(" · ")}</span>`);
+    parts.push(`<span class="trend" title="Últimos jogos (mais recente à esquerda)">${o.res.map(w=>w?`<span class="v">V</span>`:`<span class="d">D</span>`).join("")}</span>`); }
+  else parts.push("Sem ranqueadas recentes nesta rota");
+  if(o.m) parts.push(`<span>Maestria ${o.m.level} · ${kfmt(o.m.points)} pts</span>`);
+  return `<div class="me">${parts.filter(Boolean).join(" <span>·</span> ")}</div>`;
+}
+function renderPool(){
+  const el=document.getElementById("pool"), sub=document.getElementById("poolSub"), role=st.role;
+  document.getElementById("poolTitle").textContent=`Seu pool · ${RLABEL[role]}`;
+  if(!LIVE){ sub.textContent=""; el.innerHTML=`<div class="empty">Abra pelo programa DraftBot no PC para ver os campeões que você joga, lidos da sua conta.</div>`; return; }
+  if(D.offMode){ sub.textContent=""; el.innerHTML=""; return; }
+  if(!D.acct){ sub.textContent=""; el.innerHTML=`<div class="empty">${D.acctErr?"Não consegui ler a conta: "+D.acctErr:"Lendo o histórico da conta logada no cliente…"}</div>`; return; }
+  const P=playerPool(role), taken=new Set([...teamList("ally",role),...teamList("enemy"),...st.bans]), opp=resolve(st.enemy[role]);
+  sub.textContent=P.games?`${P.games} das suas ${D.acct.games.length} ranqueadas recentes foram de ${RLABEL[role]}`:`Nenhuma das suas ${D.acct.games.length} ranqueadas recentes foi de ${RLABEL[role]}`;
+  if(!P.list.length){ el.innerHTML=`<div class="empty">Você não tem campeões jogados nem com maestria alta para ${RLABEL[role]}. Use as recomendações.</div>`; return; }
+  const rows=P.list.map(o=>{const why=taken.has(o.n)?"BANIDO/ESCOLHIDO":unavailable(o.n)?"VOCÊ NÃO TEM":""; return Object.assign(chanceOf(role,o.n,true),{o,why});});
+  rows.sort((a,b)=>(!!a.why-!!b.why)||(b.p-a.p));
+  const okRows=rows.filter(r=>!r.why&&r.laneP!=null); const bestVs=opp&&okRows.length?okRows.reduce((a,b)=>b.laneP>a.laneP?b:a):null;
+  el.innerHTML=rows.map((x,i)=>recRow(x,i,role,{off:!!x.why,personal:personalLine(x.o),max:4,
+    extraTag:(x.why?`<span class="tier">${x.why}</span>`:"")+(bestVs&&bestVs.n===x.n&&bestVs.laneP>=0.5?`<span class="tier t1">SEU MELHOR CONTRA ${opp.toUpperCase()}</span>`:"")})).join("");
+}
+async function loadAccount(refresh){
+  if(!LIVE||D.acctLoading) return; D.acctLoading=true;
+  document.getElementById("acct").innerHTML="";
+  try{ D.acct=await api("/api/account"+(refresh?"?refresh=1":"")); D.acctErr=""; if(D.acct.owned) D.acct.owned=D.acct.owned.map(resolve).filter(Boolean);
+    document.getElementById("acct").innerHTML=`<b>${D.acct.name}${D.acct.tag?"#"+D.acct.tag:""}</b>${D.acct.rank?" · "+rankPT(D.acct.rank):""}`;
+    document.getElementById("poolRefresh").style.display="inline"; }
+  catch(e){ D.acctErr=e.message; setTimeout(()=>{ if(!D.acct) loadAccount(true); },15000); }
+  finally{ D.acctLoading=false; update(); }
+}
+const TIER_PT={IRON:"Ferro",BRONZE:"Bronze",SILVER:"Prata",GOLD:"Ouro",PLATINUM:"Platina",EMERALD:"Esmeralda",DIAMOND:"Diamante",MASTER:"Mestre",GRANDMASTER:"Grão-Mestre",CHALLENGER:"Desafiante"};
+const rankPT=r=>r.replace(/^[A-Z]+/,m=>TIER_PT[m]||m);
+document.getElementById("poolRefresh").onclick=()=>loadAccount(true);
+
+/* ===================== 8. Build, runas e itens ===================== */
+const STYLE={8000:"Precisão",8100:"Dominação",8200:"Feitiçaria",8300:"Inspiração",8400:"Determinação"};
+const SHARD={5005:"Velocidade de Ataque",5008:"Força Adaptativa",5007:"Aceleração de Habilidade",5010:"Velocidade de Movimento",5001:"Vida Escalável",5011:"Vida",5013:"Tenacidade e Resist. a Lentidão",5002:"Armadura",5003:"Resist. Mágica"};
+const SPELL={1:"Purificar",3:"Exaustão",4:"Flash",6:"Fantasma",7:"Curar",11:"Golpear",12:"Teleporte",13:"Clareza",14:"Incendiar",21:"Barreira",32:"Bola de Neve"};
+const ITEM_PT={3123:"Chamado do Carrasco",3033:"Lembrete Mortal",6609:"Serra-Cadeia Quimiopunk",3916:"Orbe do Esquecimento",3165:"Morellonomicon",3076:"Colete de Espinhos",3075:"Armadura de Espinhos",3011:"Putrificador Quimtec",3036:"Lembranças do Lorde Dominik",3071:"Cutelo Negro",3135:"Cajado do Vazio",3139:"Cimitarra Mercurial",3140:"Faixa Mercurial",3156:"Mandíbula de Malmortius",3091:"Fim da Razão",3102:"Véu da Banshee",3157:"Ampulheta de Zhonya",3026:"Anjo Guardião",6333:"Dança da Morte",4401:"Força da Natureza",3065:"Semblante Espiritual",2504:"Rookern Kaênico",3110:"Coração Congelado",3143:"Presságio de Randuin",3190:"Medalhão dos Solari de Ferro",3222:"Bênção de Mikael",3109:"Juramento do Cavaleiro",3107:"Redenção",3111:"Passos de Mercúrio",3047:"Botas Galvanizadas de Aço"};
+const itemName=id=>D.items[String(id)]||ITEM_PT[id]||("Item "+id);
+const itemExists=id=>!Object.keys(D.items).length||!!D.items[String(id)];   // confere com a lista de itens do cliente
+function myClass(n){const x=CH[n]||{dmg:"AD",t:""}; if(x.t.includes("T")&&!x.t.includes("K")) return x.dmg==="AD"&&x.t.includes("D")?"bruiser":"tank"; if(x.t.includes("S")&&x.dmg!=="AD") return "ench"; if(x.dmg==="AD") return x.t.includes("K")?"adc":"adfight"; return "ap";}
+function situational(n){
+  const en=analyze(teamList("enemy")); const out=[]; const cls=myClass(n);
+  const add=(id,why)=>{if(id&&itemExists(id)&&!out.find(o=>o.id===id)) out.push({id,why});};
+  const heal=en.names.H, tanks=en.names.T, aa=en.c.K+en.adA.length;
+  if(heal.length) add({adc:3033,adfight:6609,bruiser:6609,ap:3916,tank:3075,ench:3011}[cls],`Cura inimiga (${heal.join(", ")})`);
+  if(tanks.length>=2) add({adc:3036,adfight:3071,bruiser:3071,ap:3135}[cls],`Linha de frente inimiga (${tanks.join(", ")})`);
+  if(en.c.X){ if(cls==="adc") add(3139,`Supressão de ${en.names.X.join(", ")}`); else if(cls==="adfight"||cls==="bruiser") add(3140,`Supressão de ${en.names.X.join(", ")}`); }
+  if(en.apA.length) add({adc:3156,adfight:3156,bruiser:3156,ap:3102,tank:4401,ench:3190}[cls],`Burst mágico (${en.apA.join(", ")})`);
+  if(en.adA.length) add({adc:3026,adfight:6333,bruiser:6333,ap:3157,tank:3143,ench:3107}[cls],`Assassinos físicos (${en.adA.join(", ")})`);
+  if(cls==="tank"&&aa>=2) add(3110,`Muito ataque básico (${en.names.K.slice(0,3).join(", ")})`);
+  if(cls==="tank"&&en.apPct>=.6) add(2504,"Time inimigo quase todo mágico");
+  if(cls==="ench"&&en.c.C>=3) add(3222,`CC pesado (${en.names.C.slice(0,3).join(", ")})`);
+  let boots=null; if((en.c.C>=4||en.apPct>=.6)&&itemExists(3111)) boots={id:3111,why:"Muito CC/dano mágico"}; else if(aa>=3&&en.apPct<.4&&itemExists(3047)) boots={id:3047,why:"Muito ataque básico"};
+  return {list:out,boots};
+}
+function skillGrid(order){
+  if(!order||!order.length) return "";
+  return `<div class="skills">${order.slice(0,18).map(s=>`<div class="${s==="R"?"r":""}">${s}</div>`).join("")}</div><div class="skills">${order.slice(0,18).map((s,i)=>`<div class="lv">${i+1}</div>`).join("")}</div>`;
+}
+function itemsetBody(n,b,sit){
+  return {champ:n,blocks:[
+    {title:"Inicial",items:(b.starter[0]||{ids:[]}).ids},{title:"Núcleo",items:(b.core[0]||{ids:[]}).ids},
+    {title:"Botas",items:sit.boots?[sit.boots.id]:(b.boots[0]||{ids:[]}).ids},
+    {title:"Situacionais deste jogo",items:sit.list.map(s=>s.id)},
+    {title:"Finais populares",items:[...new Set(b.late.slice(0,6).flatMap(l=>l.ids))]}]};
+}
+async function sendRunes(n,rp,msgEl){ if(msgEl) msgEl.textContent="Enviando…";
+  try{const d=await post("/api/runes",{name:"DraftBot · "+n,primaryStyleId:rp.primary,subStyleId:rp.secondary,selectedPerkIds:rp.ids}); if(msgEl) msgEl.textContent=d.ok?"Página de runas criada e ativada.":"Não deu: "+d.error; return d.ok;}
+  catch(e){ if(msgEl) msgEl.textContent="O programa não respondeu."; return false; } }
+async function sendItems(body,msgEl){ if(msgEl) msgEl.textContent="Enviando…";
+  try{const d=await post("/api/itemset",body); if(msgEl) msgEl.textContent=d.ok?"Conjunto “DraftBot” criado na loja.":"Não deu: "+d.error; return d.ok;}
+  catch(e){ if(msgEl) msgEl.textContent="O programa não respondeu."; return false; } }
+function renderBuild(){
+  const el=document.getElementById("build"), role=st.role, n=resolve(st.ally[role])||previewChamp;
+  if(!n||D.offMode){el.innerHTML="";return;}
+  const opp=resolve(st.enemy[role])||"";
+  if(!LIVE){ el.innerHTML=`<div class="card"><div class="bh"><div><div class="t">${n}</div><div class="s">${RLABEL[role]}</div></div></div><div class="empty">Runas e build do patch atual aparecem quando você abre pelo programa DraftBot no PC.</div></div>`; return;}
+  const b=buildOf(role,n,opp);
+  if(b===undefined){ el.innerHTML=`<div class="card"><div class="empty">Buscando runas e build de ${n}${opp?" contra "+opp:""} no patch atual…</div></div>`; return; }
+  if(b===null){ el.innerHTML=`<div class="card"><div class="empty">Não consegui as estatísticas de ${n} agora (${D.err["builds|"+[role,n,opp].join("|")]||"sem conexão"}).</div></div>`; return; }
+  const sit=situational(n), c=chanceOf(role,n), cp=D.acct?chanceOf(role,n,true):null, e=metaEntry(role,n);
+  const rp=b.runes[Math.min(runeAlt,b.runes.length-1)];
+  const advTxt=!b.advantage?"":b.advantage==="EVEN"?"Rota equilibrada":(resolve(b.advantage)===n?"Você leva vantagem na rota":`${b.advantage} leva vantagem na rota`);
+  const styleTxt={defensive:"jogue defensivo",aggressive:"jogue agressivo",even:"troque com cuidado"}[b.style]||"";
+  const vs=b.vs&&b.vs.play?{wr:b.vs.win/b.vs.play,p:b.vs.play}:null;
+  const src=b.source==="matchup"?`neste confronto`:b.source==="mixed"?"gerais (confronto raro)":"mais usadas";
+  const it=g=>g&&g.ids.length?g.ids.map((id,i)=>g.names[i]&&isNaN(g.names[i])?g.names[i]:itemName(id)).join(" → "):"—";
+  const runeRows=rp?rp.names.map((nm,i)=>`<div class="row ${i===0?"ks":""}"><span>${nm}</span>${i===4?`<span class="m">${STYLE[rp.secondary]||""}</span>`:i===0?`<span class="m">${STYLE[rp.primary]||""}</span>`:""}</div>`).join("")+`<div class="row"><span>${rp.ids.slice(6).map(s=>SHARD[s]||s).join(" · ")}</span></div>`:"<div class='note'>Sem dados de runas.</div>";
+  const spells=b.spells[0]?b.spells[0].ids.map(i=>SPELL[i]||i).join(" + "):"—";
+  const vsRare=vs&&vs.p<300;
+  el.innerHTML=`<div class="card">
+   <div class="bh"><div><div class="lbl">${RLABEL[role]}${opp?" · contra "+opp:" · sem oponente definido"}</div><div class="t">${n}</div></div>
+     <div class="kpis"><div class="kpi"><div class="lbl">Chance geral</div><div class="v red">${pct(c.p)}</div></div>${cp?`<div class="kpi"><div class="lbl">Para você</div><div class="v">${pct(cp.p)}</div></div>`:""}
+     ${e?`<div class="kpi"><div class="lbl">Tier</div><div class="v">T${e.tier}</div></div>`:""}
+     ${vs?`<div class="kpi"><div class="lbl">vs ${opp}</div><div class="v">${pct(vs.wr)}</div></div>`:""}
+     ${rp?`<div class="kpi"><div class="lbl">Runas</div><div class="v">${pct(rp.win/(rp.play||1))}</div></div>`:""}</div></div>
+   ${b.note||vsRare?`<div class="warn">${[vsRare?`Confronto raro: só ${vs.p} partidas de ${n} contra ${opp}, então os números variam bastante.`:"",b.note].filter(Boolean).join(" ")}</div>`:""}
+   ${b.tip||advTxt?`<div class="tip">${advTxt?`<b>${advTxt}</b>${styleTxt?", "+styleTxt:""}. `:""}${b.tip||""}</div>`:""}
+   <div class="cols">
+    <div class="box"><div class="sub">Runas ${src} ${rp?`· ${pct(rp.pick)} usam · ${kfmt(rp.play)} jogos`:""}</div>${runeRows}
+      ${b.runes.length>1?`<div class="note"><span class="alt" id="altRune">Ver página alternativa (${runeAlt+1}/${b.runes.length})</span></div>`:""}
+      <div class="sub">Feitiços</div><div class="row"><span>${spells}</span></div>
+      <div class="skillbox"><div class="sub">Habilidades ${b.priority.length?"· prioridade "+b.priority.join(" › "):""}</div>${skillGrid(b.order)||"<div class='note'>—</div>"}</div>
+      <div class="acts"><button class="btn pri" id="sendRunes" ${rp&&rp.ids.length===9?"":"disabled"}>Enviar runas</button><span class="msg" id="runeMsg"></span></div>
+    </div>
+    <div class="box"><div class="sub">Inicial</div><div class="row"><span>${it(b.starter[0])}</span></div>
+      <div class="sub">Núcleo ${b.core[0]?`· ${pct(b.core[0].win/(b.core[0].play||1))} vitória · ${kfmt(b.core[0].play)} jogos`:""}</div><div class="row ks"><span>${it(b.core[0])}</span></div>
+      ${b.core.slice(1,3).map(x=>`<div class="row"><span>${it(x)}</span><span class="m">${pct(x.pick)}</span></div>`).join("")}
+      <div class="sub">Botas</div><div class="row"><span>${sit.boots?`<b>${itemName(sit.boots.id)}</b>`:it(b.boots[0])}</span>${sit.boots?`<span class="m">${sit.boots.why}</span>`:""}</div>
+      ${sit.list.length?`<div class="sub" style="color:var(--red)">Situacionais deste jogo</div>${sit.list.map(s=>`<div class="sitem"><b>${itemName(s.id)}</b> <span>· ${s.why}</span></div>`).join("")}`:""}
+      <div class="late"><div class="sub">Itens finais populares</div>${b.late.slice(0,6).map(l=>`<div class="row"><span>${it(l)}</span><span class="m">${pct(l.pick)}</span></div>`).join("")||"—"}</div>
+      <div class="acts"><button class="btn" id="sendItems">Enviar build para a loja</button><span class="msg" id="itemMsg"></span></div>
+    </div>
+   </div></div>`;
+  const alt=document.getElementById("altRune"); if(alt) alt.onclick=()=>{runeAlt=(runeAlt+1)%b.runes.length;renderBuild();};
+  const sr=document.getElementById("sendRunes"); if(sr) sr.onclick=()=>sendRunes(n,rp,document.getElementById("runeMsg"));
+  document.getElementById("sendItems").onclick=()=>sendItems(itemsetBody(n,b,sit),document.getElementById("itemMsg"));
+  // envio automático ao travar
+  if(autoSend&&liveD&&liveD.myLocked&&liveD.myChamp&&resolve(liveD.myChamp)===n){
+    const key=(liveD.sessionKey||"")+"|"+n;
+    if(D.sentKey!==key){ D.sentKey=key;
+      Promise.all([rp&&rp.ids.length===9?sendRunes(n,rp,document.getElementById("runeMsg")):Promise.resolve(false),sendItems(itemsetBody(n,b,sit),document.getElementById("itemMsg"))])
+        .then(([r,i])=>{const m=document.getElementById("runeMsg"); if(m&&r&&i) m.textContent="Enviados automaticamente ao travar.";}); }
+  }
+}
+
+/* ===================== 9. Modo ao vivo ===================== */
+const POS={bottom:"adc",utility:"sup",top:"top",jungle:"jg",middle:"mid"};
+const PHASE={None:"no menu",Lobby:"no lobby",Matchmaking:"procurando partida",ReadyCheck:"partida encontrada",ChampSelect:"seleção de campeões",GameStart:"carregando",InProgress:"em jogo",WaitingForStats:"fim de jogo",EndOfGame:"fim de jogo",PreEndOfGame:"fim de jogo"};
+let lastSig="", lastPhase="";
+function setStatus(kind,t){document.getElementById("dot").className="dot "+kind;document.getElementById("statusTxt").textContent=t;}
+function banIdeas(){
+  const role=st.role, taken=new Set([...teamList("ally"),...teamList("enemy"),...st.bans]); const mine=resolve(st.ally[role])||previewChamp;
+  if(mine){ const t=tableOf(role,mine); if(t&&t.rows.length){ const tot=t.rows.reduce((s,r)=>s+r.play,0);
+    return t.rows.filter(r=>r.play/tot>=0.01&&resolve(r.name)!==mine&&!taken.has(resolve(r.name))).map(r=>({n:resolve(r.name)||r.name,wr:r.win/r.play})).sort((a,b)=>a.wr-b.wr).slice(0,3).map(x=>`${x.n} (${pct(x.wr)})`);} }
+  if(!D.meta) return [];
+  return (D.meta.positions[OPOS[role]]||[]).filter(e=>e.pick_rate>=0.02&&!taken.has(resolve(e.champion))).sort((a,b)=>(a.tier-b.tier)||(b.win_rate-a.win_rate)).slice(0,3).map(e=>e.champion);
+}
+function renderSit(d,note){
+  const P=[], role=st.role, opp=resolve(st.enemy[role]);
+  if(D.offMode){ P.push(`<span class="pill go">${D.offMode}</span>`); document.getElementById("sit").innerHTML=P.join(""); return; }
+  if(d&&d.myTurn==="pick") P.push(`<span class="pill go">Sua vez de escolher</span>`);
+  if(d&&(d.myTurn==="ban"||d.subphase==="ban")){const b=banIdeas(); P.push(`<span class="pill ${d.myTurn==="ban"?"go":""}">${d.myTurn==="ban"?"Sua vez de banir":"Bans"}${b.length?": "+b.join(", "):""}</span>`);}
+  if(opp) P.push(`<span class="pill">Counter-pick contra ${opp}</span>`); else P.push(`<span class="pill">Às cegas: seu oponente ainda não escolheu</span>`);
+  const inf=ROLES.filter(([k])=>st.enemy[k]).map(([k,l])=>`${st.enemy[k]}${st.pins[st.enemy[k]]===k?" ●":""} ${l}`); if(LIVE&&d&&inf.length) P.push(`<span class="pill">Rotas inimigas: ${inf.join(" · ")}</span>`);
+  if(d&&d.myHover) P.push(`<span class="pill">Você está olhando ${resolve(d.myHover)||d.myHover}</span>`);
+  if(d&&d.myHover&&unavailable(resolve(d.myHover))) P.push(`<span class="pill go">Você não tem ${resolve(d.myHover)}</span>`);
+  if(note) P.push(`<span class="pill">${note}</span>`);
+  document.getElementById("sit").innerHTML=P.join("");
+}
+function applyLive(d){
+  const prev=lastPhase; lastPhase=d.connected?d.phase:""; liveD=d;
+  // conta logada: lê ao abrir e relê quando a conta muda
+  if(d.connected&&d.puuid&&d.puuid!==D.acctPuuid&&!D.acctLoading){ D.acctPuuid=d.puuid; D.acct=null; D.acctErr=""; loadAccount(true); }
+  else if(d.connected&&!d.puuid&&D.acctPuuid){ D.acctPuuid=""; D.acct=null; D.acctErr="faça login no cliente do LoL"; document.getElementById("acct").innerHTML=""; update(); }
+  if(d.connected&&d.phase==="ChampSelect"&&prev&&prev!=="ChampSelect"&&D.acct) loadAccount(true);
+  // nova seleção de campeões: garante estatísticas recentes (a OP.GG atualiza diariamente)
+  if(d.connected&&d.phase==="ChampSelect"&&prev!=="ChampSelect"&&D.metaT&&Date.now()-D.metaT>META_REFRESH_MS/2) loadMeta();
+  if(d.connected&&!Object.keys(D.items).length) loadClientData();
+  if(!d.connected){setStatus("","Cliente do LoL não encontrado");renderSit(null,d.message);return;}
+  if(d.phase!=="ChampSelect"){ if(D.offMode||D.pickable){D.offMode="";D.pickable=null;update();} setStatus("idle","Conectado · "+(PHASE[d.phase]||d.phase));document.getElementById("sit").innerHTML="";return;}
+  setStatus("on","Seleção de campeões"+(d.timerLeft!=null?` · ${d.timerLeft}s`:""));
+  if(d.sessionKey&&d.sessionKey!==D.lastSession){ D.lastSession=d.sessionKey; st.pins={}; D.sentKey=""; }
+  // modo de jogo: só Summoner's Rift
+  const q=d.queue||{}; const off=(q.mapId&&q.mapId!==11)?`${q.name||q.mode||"Este modo"}: o DraftBot só recomenda para partidas no Summoner's Rift.`:"";
+  D.pickable=d.pickable&&d.pickable.length?d.pickable.map(resolve).filter(Boolean):null;
+  if(!document.getElementById("autoChk").checked){ if(off!==D.offMode){D.offMode=off;update();} renderSit(d);return;}
+  const myPos=POS[d.myPosition]; if(myPos) st.role=myPos;
+  const keep=previewChamp;
+  const ally=EMPTY(),loose=[];
+  d.ally.forEach(p=>{const n=resolve(p.champ);if(!n)return;let k=POS[p.position];if(p.isMe&&!k)k=st.role;if(k&&!ally[k])ally[k]=n;else loose.push(n);});
+  const fixed={};Object.entries(ally).forEach(([k,v])=>{if(v)fixed[k]=v;});
+  st.ally=loose.length?inferRoles(loose,fixed):ally;
+  if(d.myHover){ st.ally[st.role]=""; previewChamp=resolve(d.myHover); } else if(!d.myLocked) previewChamp=keep;
+  st.enemy=placeEnemies(d.enemy);
+  st.bans=[...new Set(d.bans.map(resolve).filter(Boolean))];
+  const sig=JSON.stringify([st.role,st.ally,st.enemy,st.bans,previewChamp,off,(D.pickable||[]).length,d.myLocked]);
+  if(sig!==lastSig){lastSig=sig;D.offMode=off;save();renderSlots();renderBans();update();}
+  renderSit(d);
+}
+async function poll(){
+  try{const r=await fetch("/api/state",{cache:"no-store"});applyLive(await r.json());}catch(e){setStatus("","O programa DraftBot não está respondendo");}
+  setTimeout(poll,1000);
+}
+async function loadClientData(){
+  if(D.clientLoading) return; D.clientLoading=true;
+  try{ D.items=await api("/api/items")||{}; const champs=await api("/api/champs")||[]; let added=0;
+    champs.forEach(c=>{ if(registerChamp(c.name,c.alias)) added++; }); if(added){refreshList();update();} }
+  catch(e){} finally{ setTimeout(()=>{D.clientLoading=false;},30000); }
+}
+async function loadMeta(){
+  try{const m=await api("/api/meta");
+    if(D.meta&&D.meta.version&&m.version&&m.version!==D.meta.version){ // patch novo: descarta o que veio do anterior
+      D.tables={};D.syn={};D.builds={};D.err={}; }
+    D.meta=m; D.metaT=Date.now(); Object.keys(META_IDX).forEach(k=>delete META_IDX[k]);
+    let added=0; Object.values(D.meta.positions).forEach(l=>l.forEach(x=>{ if(registerChamp(x.champion)) added++; })); if(added) refreshList();
+    document.getElementById("patch").textContent="patch "+(D.meta.version?("26."+D.meta.version.split(".")[1]):"atual")+" · OP.GG"; document.getElementById("banner").innerHTML=""; update();}
+  catch(e){document.getElementById("patch").textContent="sem estatísticas"; document.getElementById("banner").innerHTML=`<div class="banner">Não consegui buscar as estatísticas da OP.GG (${e.message}). As recomendações usam só a composição até a conexão voltar. Tentando de novo em 30 s.</div>`; setTimeout(loadMeta,30000);}
+}
+async function loadVersion(){
+  try{const r=await fetch("/api/version",{cache:"no-store"}); const v=await r.json(); document.getElementById("verTxt").textContent="DraftBot "+v.version;
+    if(v.update) document.getElementById("updBanner").insertAdjacentHTML("afterbegin",`<div class="banner"><b>Nova versão ${v.update.version} disponível.</b> ${v.update.notes||""} ${v.update.url?`<a href="${v.update.url}" target="_blank" rel="noopener" style="color:#fff">Baixar</a>`:""}</div>`);}catch(e){}
+}
+document.getElementById("diagBtn").onclick=async()=>{
+  const m=document.getElementById("diagMsg");
+  try{const t=await api("/api/diag"); try{await navigator.clipboard.writeText(t); m.textContent="Diagnóstico copiado. Cole na conversa com quem estiver te ajudando.";}
+    catch(e){ document.getElementById("diagBox").innerHTML=`<textarea class="diag" readonly>${t.replace(/</g,"&lt;")}</textarea>`; m.textContent="Selecione o texto abaixo e copie (Ctrl+C)."; } }
+  catch(e){m.textContent="O programa não respondeu.";}
+};
+// modo compacto (janela pequena ao lado do cliente)
+const applyCompact=()=>{document.body.classList.toggle("compact",location.hash==="#compacto");};
+window.addEventListener("hashchange",applyCompact); applyCompact();
+document.getElementById("compactBtn").onclick=()=>{ const w=window.open(location.origin+"/#compacto","draftbot_compacto","popup,width=500,height=940"); if(!w) location.hash="compacto"; };
+document.getElementById("fullLink").onclick=()=>{ history.replaceState(null,"",location.pathname); applyCompact(); };
+const sendChk=document.getElementById("autoSend"); sendChk.checked=autoSend;
+sendChk.onchange=()=>{autoSend=sendChk.checked; try{localStorage.setItem("draftbotAutoSend",autoSend?"1":"0");}catch(e){}};
+
+if(LIVE){ ["autoWrap","sendWrap"].forEach(i=>document.getElementById(i).style.display="flex"); ["compactBtn","diagBtn"].forEach(i=>document.getElementById(i).style.display="inline-block");
+  setStatus("idle","Conectando…"); loadMeta(); loadVersion(); poll();
+  setInterval(()=>{ if(D.metaT&&Date.now()-D.metaT>=META_REFRESH_MS) loadMeta(); },60000); }
+else document.getElementById("banner").innerHTML=`<div class="banner">Versão online: preenchimento manual e recomendações só pela composição. Para estatísticas do patch atual, leitura automática do cliente, da sua conta e envio de runas, abra pelo programa DraftBot no seu PC.</div>`;
+
+function bindBuildBtns(){document.querySelectorAll("[data-pv]").forEach(b=>b.onclick=()=>{previewChamp=b.dataset.pv;runeAlt=0;update();document.getElementById("build").scrollIntoView({behavior:"smooth"});});}
+function update(){renderAnalysis();renderRecs();renderPool();renderBuild();bindBuildBtns();if(!LIVE)renderSit(null);else if(liveD&&liveD.phase==="ChampSelect")renderSit(liveD);}
+renderSlots();renderBans();update();
+</script>
+</body>
+</html>

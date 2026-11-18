@@ -1,0 +1,38 @@
+# Rode manualmente (aba Actions > "Avisar nova versão" > Run workflow) DEPOIS de colocar o .zip novo
+# no link de download. Atualiza o version.json do gist secreto: quem tem o DraftBot vê o aviso.
+#
+# Precisa (uma vez, em Settings > Secrets and variables > Actions):
+#   secret   GIST_TOKEN    token do GitHub com permissão "gist"
+#   variável GIST_ID       o código do gist secreto (parte final do endereço do gist)
+#   variável DOWNLOAD_URL  o link que você manda para os amigos (Google Drive / OneDrive)
+name: Avisar nova versão
+
+on:
+  workflow_dispatch:
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Atualizar o version.json do gist secreto
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ vars.GIST_ID }}
+          DOWNLOAD_URL: ${{ vars.DOWNLOAD_URL }}
+        run: |
+          test -n "$GIST_TOKEN" -a -n "$GIST_ID" -a -n "$DOWNLOAD_URL" || { echo "Configure GIST_TOKEN, GIST_ID e DOWNLOAD_URL"; exit 1; }
+          v=$(python3 tools/check_version.py)
+          python3 - "$v" <<'PY'
+          import json, os, subprocess, sys
+          v = sys.argv[1]
+          notes = subprocess.run(["python3", "tools/release_notes.py", v], capture_output=True, text=True).stdout
+          first = " ".join(l.lstrip("- ").strip() for l in notes.splitlines()[:2])[:300]
+          info = {"version": v, "url": os.environ["DOWNLOAD_URL"], "notes": first}
+          json.dump({"files": {"version.json": {"content": json.dumps(info, ensure_ascii=False, indent=2)}}},
+                    open("payload.json", "w"), ensure_ascii=False)
+          print(json.dumps(info, ensure_ascii=False, indent=2))
+          PY
+          curl -fsS -X PATCH -H "Authorization: Bearer $GIST_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/gists/$GIST_ID" --data @payload.json > /dev/null
+          echo "Aviso publicado."

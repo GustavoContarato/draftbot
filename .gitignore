@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+cache_opgg.json
+cache_opgg.json.tmp
+draftbot.log*
+config.json
+python/
+build/
+dist/
+*.zip
