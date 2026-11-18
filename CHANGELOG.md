@@ -1,5 +1,9 @@
 # Mudanças
 
+## v2.5.3
+- Corrigido: campeões com poucas partidas de confronto (comum logo após um patch) apareciam como "Seguro às cegas" só porque os counters ainda não tinham aparecido nos dados. Agora o risco deles é estimado pelo típico da rota até haver partidas suficientes.
+- Aviso quando o patch saiu há pouco e ainda há poucas partidas.
+
 ## v2.5.2
 - Corrigido: em alguns PCs a 2.5.1 abria a janela com "This page isn't working" (pasta interna incompleta). Agora o programa se prepara do zero a cada abertura.
 - Se faltar algum arquivo do programa, a janela explica o que fazer em vez de ficar em branco.

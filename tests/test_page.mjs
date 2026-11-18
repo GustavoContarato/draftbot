@@ -48,7 +48,7 @@ globalThis.fetch = async (url) => {
 globalThis.__T = {};
 (0, eval)(script.replace("setTimeout(poll,1000);", "") +
   `;Object.assign(globalThis.__T,{st:()=>st,D,update,rankRole,chanceOf,placeEnemies,resolve,EMPTY,loadMeta,
-     registerChamp,metaEntry,setAcct:a=>{D.acct=a;}});`);
+     registerChamp,metaEntry,blindProfile,setAcct:a=>{D.acct=a;}});`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- mini framework ----------
@@ -174,6 +174,26 @@ await test("dia de patch novo: avisa a mistura e renova ao terminar", async () =
   assert(!("x|y" in __T.D.tables), "deveria buscar de novo só com o patch novo");
   assert(els.banner.innerHTML === "", els.banner.innerHTML);
   S.meta = META; await __T.loadMeta();
+});
+
+await test("patch recém-saído: sem falso 'Seguro às cegas' e com aviso de poucos dados", async () => {
+  const thin = JSON.parse(JSON.stringify(META));
+  Object.values(thin.positions).forEach(l => l.forEach(x => { x.play = Math.round(x.play / 100); x.win = Math.round(x.win / 100); }));
+  thin.version = "16.24";
+  S.meta = thin; await __T.loadMeta();
+  assert(strip(els.banner.innerHTML).includes("poucas partidas"), els.banner.innerHTML);
+  // tabela com pouquíssimos jogos e nenhum counter visível
+  const tiny = { rows: ["Jinx", "Caitlyn", "Ezreal", "Kai'Sa"].map(n => ({ name: n, play: 120, win: 62 })) };
+  __T.D.tables["adc|Xayah"] = tiny;
+  const bp = __T.blindProfile("adc", "Xayah");
+  assert(bp && !bp.sure, "deveria marcar poucos dados");
+  assert(bp.gap > bp.raw + 0.01, `risco deveria ir para o típico: ${bp.raw} → ${bp.gap}`);
+  draft("adc"); await settle();
+  const x = __T.chanceOf("adc", "Xayah");
+  assert(!x.R.some(r => r[1] === "Seguro às cegas"), JSON.stringify(x.R));
+  assert(x.R.some(r => r[1].startsWith("Poucas partidas de confronto")), JSON.stringify(x.R));
+  S.meta = META; delete __T.D.tables["adc|Xayah"]; await __T.loadMeta();
+  assert(!strip(els.banner.innerHTML).includes("poucas partidas"));
 });
 
 console.log(`\n${passed} ok, ${failed} falharam`);

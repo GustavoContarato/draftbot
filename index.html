@@ -536,9 +536,14 @@ function blindProfile(role,n){ // quanto ele perde quando o inimigo escolhe um c
   const field=w.reduce((s,x)=>s+x.sh*x.wr,0);
   const common=w.filter(x=>x.sh>=0.02).sort((a,b)=>a.wr-b.wr); const worst=common.slice(0,3);
   if(!worst.length) return null;
-  const wavg=worst.reduce((s,x)=>s+x.wr,0)/worst.length;
-  return {gap:field-wavg,worst:worst[0]};
+  const wavg=worst.reduce((s,x)=>s+x.wr,0)/worst.length, raw=field-wavg;
+  // Com poucas partidas (ex.: patch recém-saído) os counters ainda não aparecem nos dados: falta de dados
+  // não é segurança. O risco medido é misturado com o risco típico da rota, pesado pelo nº de partidas.
+  const prior=BLIND_MED[role]!=null?BLIND_MED[role]:0.025;
+  return {gap:(raw*tot+prior*BLIND_K)/(tot+BLIND_K),raw,n:tot,sure:tot>=BLIND_MIN,worst:worst[0]};
 }
+const BLIND_K=4000, BLIND_MIN=6000;   // partidas de confronto: peso do risco típico / mínimo para "Seguro às cegas"
+const BLIND_MED={};                    // por rota: risco típico entre campeões com dados suficientes
 const BLIND_Q=0.35;          // chance aproximada de o oponente escolher depois e escolher um counter
 let blindDefault=0.012;      // penalidade típica, usada enquanto um campeão ainda não foi avaliado
 const BLIND_TH={};           // por rota: quarto mais estável (lo) e quarto mais arriscado (hi)
@@ -572,6 +577,7 @@ function chanceOf(role,n,personal){
     const bp=blindProfile(role,n);
     if(bp){ const d=-BLIND_Q*bp.gap; p+=d; const th=BLIND_TH[role]||{lo:0.018,hi:0.035};
       if(bp.worst.wr<0.47||bp.gap>=th.hi) R.push(["n",`Às cegas, pode levar counter de ${bp.worst.n} (${pct(bp.worst.wr)})`]);
+      else if(!bp.sure) R.push(["z",`Poucas partidas de confronto neste patch (${kfmt(bp.n)}): risco às cegas estimado`]);
       else if(bp.gap<=th.lo) R.push(["p","Seguro às cegas"]); }
     else { p-=blindDefault; if(bp===undefined&&LIVE) R.push(["z","avaliando confrontos…"]); }
   }
@@ -614,7 +620,10 @@ function chanceOf(role,n,personal){
 }
 function rankRole(role){
   if(!resolve(st.enemy[role])){ // atualiza a penalidade típica com os campeões já avaliados
-    const gaps=candidates(role).map(n=>blindProfile(role,n)).filter(Boolean).map(b=>b.gap).sort((a,b)=>a-b);
+    const prof=candidates(role).map(n=>blindProfile(role,n)).filter(Boolean);
+    const sure=prof.filter(b=>b.sure).map(b=>b.raw).sort((a,b)=>a-b);
+    if(sure.length>=5) BLIND_MED[role]=sure[Math.floor(sure.length/2)];
+    const gaps=prof.map(b=>b.gap).sort((a,b)=>a-b);
     if(gaps.length>=5){ blindDefault=BLIND_Q*gaps[Math.floor(gaps.length/2)];
       BLIND_TH[role]={lo:gaps[Math.floor(gaps.length*0.25)],hi:gaps[Math.floor(gaps.length*0.75)]}; }
   }
@@ -860,6 +869,12 @@ function blendNote(b){
   const dia=t.toDateString()===new Date().toDateString()?"hoje":"amanhã";
   return `<div class="banner note">Patch novo: ainda há poucas partidas. Até ${dia} às ${h}, as estatísticas também usam o patch ${patchName(b.prev)}, com peso cada vez menor.</div>`;
 }
+function thinNote(m){ // patch recém-saído sem dados do anterior: avisa que as diferenças ainda são ruído
+  const plays=Object.values(m.positions||{}).map(l=>Math.max(0,...l.map(x=>x.play||0)));
+  if(!plays.length||Math.max(...plays)>=THIN_PLAY) return "";
+  return `<div class="banner note">Patch ${patchName(m.version)} saiu há pouco: ainda há poucas partidas, então as chances ficam todas perto de 50% e a ordem entre campeões parecidos é incerta. Fica mais confiável em 1 ou 2 dias.</div>`;
+}
+const THIN_PLAY=50000;
 async function loadMeta(){
   try{const m=await api("/api/meta");
     const dk=x=>(x.version||"")+"|"+(x.blend?x.blend.prev:"");
@@ -867,7 +882,7 @@ async function loadMeta(){
       D.tables={};D.syn={};D.builds={};D.err={}; }
     D.meta=m; D.metaT=Date.now(); Object.keys(META_IDX).forEach(k=>delete META_IDX[k]);
     let added=0; Object.values(D.meta.positions).forEach(l=>l.forEach(x=>{ if(registerChamp(x.champion)) added++; })); if(added) refreshList();
-    document.getElementById("patch").textContent="patch "+(D.meta.version?patchName(D.meta.version):"atual")+(D.meta.blend?" + "+patchName(D.meta.blend.prev):"")+" · OP.GG"; document.getElementById("banner").innerHTML=blendNote(D.meta.blend); update();}
+    document.getElementById("patch").textContent="patch "+(D.meta.version?patchName(D.meta.version):"atual")+(D.meta.blend?" + "+patchName(D.meta.blend.prev):"")+" · OP.GG"; document.getElementById("banner").innerHTML=blendNote(D.meta.blend)||thinNote(D.meta); update();}
   catch(e){document.getElementById("patch").textContent="sem estatísticas"; document.getElementById("banner").innerHTML=`<div class="banner">Não consegui buscar as estatísticas da OP.GG (${e.message}). As recomendações usam só a composição até a conexão voltar. Tentando de novo em 30 s.</div>`; setTimeout(loadMeta,30000);}
 }
 async function updateNow(){

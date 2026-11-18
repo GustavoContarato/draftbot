@@ -37,7 +37,10 @@ com estatísticas de ranqueadas do patch atual (OP.GG):
 No dia em que sai um patch novo ainda há poucas partidas dele. Por isso, nas
 primeiras 24 h o DraftBot também usa as do patch anterior, com peso que cai
 até zero ao fim do dia (a página avisa enquanto isso acontece). Só funciona se
-o DraftBot foi aberto no patch anterior, no dia antes da virada.
+o DraftBot foi aberto no patch anterior, no dia antes da virada. Sem isso, a
+página avisa que o patch é recente e que a ordem entre campeões parecidos
+ainda é incerta. "Seguro às cegas" só aparece para quem já tem partidas de
+confronto suficientes no patch.
 A coluna Recomendações é igual para qualquer conta: só depende do patch e da
 seleção. Campeões que você não tem aparecem marcados ("você não tem"), não
 escondidos. A coluna Seu pool soma a isso a sua experiência e o seu resultado
