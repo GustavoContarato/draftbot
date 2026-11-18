@@ -72,6 +72,9 @@ jobs:
           Write-Output "saída: $($p.ExitCode) · $r"
           if ($p.ExitCode -ne 0 -or -not ($r -like "SELFTEST OK*executável*")) { exit 1 }
 
+      - name: Testar a atualização automática com o .exe de verdade
+        run: python tools/e2e_update.py build\draftbot.dist
+
       - name: Montar o pacote .zip
         run: |
           $v = python tools/check_version.py

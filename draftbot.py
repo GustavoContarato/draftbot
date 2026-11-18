@@ -1014,7 +1014,8 @@ def prepare_update(info):
     Devolve a pasta que contém o DraftBot.exe novo."""
     import shutil, zipfile
     url, want = (info or {}).get("url", ""), str((info or {}).get("sha256", "")).strip().lower()
-    if not url.startswith("https://"):
+    test_ok = os.environ.get("DRAFTBOT_TEST_UPDATES") == "1" and url.startswith("http://127.0.0.1:")
+    if not url.startswith("https://") and not test_ok:
         raise RuntimeError("o aviso de versão não tem um link de download válido")
     if not re.fullmatch(r"[0-9a-f]{64}", want):
         raise RuntimeError("o aviso de versão não tem a impressão digital (sha256) do arquivo")
@@ -1109,7 +1110,8 @@ def install_update_and_exit(new_dir, version):
         except Exception:
             pass
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([os.path.join(APP_DIR, "DraftBot.exe"), "--apos-atualizar"], cwd=APP_DIR,
+    args = [a for a in sys.argv[1:] if a != "--apos-atualizar"] + ["--apos-atualizar"]
+    subprocess.Popen([os.path.join(APP_DIR, "DraftBot.exe")] + args, cwd=APP_DIR,
                      creationflags=flags, close_fds=True)
     os._exit(0)
 
