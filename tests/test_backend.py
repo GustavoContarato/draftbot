@@ -474,6 +474,31 @@ class Atualizacao(unittest.TestCase):
         self.assertEqual(st, 403)
 
 
+class AvisoDoGitHub(unittest.TestCase):
+    """Versão nova lida direto da última release do GitHub (com a impressão digital do .zip)."""
+
+    REL = {"tag_name": "v9.1.0", "html_url": "https://github.com/x/draftbot/releases/tag/v9.1.0",
+           "body": "- Coisa nova e boa.\n- Outra coisa.",
+           "assets": [{"name": "outro.txt", "browser_download_url": "https://x/outro.txt"},
+                      {"name": "DraftBot-v9.1.0-windows.zip", "digest": "sha256:" + "ab" * 32,
+                       "browser_download_url": "https://github.com/x/draftbot/releases/download/v9.1.0/DraftBot-v9.1.0-windows.zip"}]}
+
+    def test_le_a_release(self):
+        i = DB.from_release(self.REL)
+        self.assertEqual(i["version"], "9.1.0")
+        self.assertEqual(i["sha256"], "ab" * 32)
+        self.assertTrue(i["url"].endswith("DraftBot-v9.1.0-windows.zip"))
+        self.assertEqual(i["notes"], "Coisa nova e boa.")
+        self.assertEqual(i["page"], self.REL["html_url"])
+
+    def test_release_ainda_sem_zip_e_ignorada(self):
+        self.assertEqual(DB.from_release(dict(self.REL, assets=[])), {})
+
+    def test_formato_antigo_do_gist(self):
+        g = {"version": "9.0.0", "url": "https://a/b.zip", "sha256": "cd" * 32}
+        self.assertEqual(DB.from_release(g), g)
+
+
 class AvisoDeVersao(unittest.TestCase):
     def test_avisa_quando_ha_versao_nova(self):
         from http.server import BaseHTTPRequestHandler

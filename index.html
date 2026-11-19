@@ -903,7 +903,7 @@ async function loadVersion(){
       const auto=v.autoUpdate&&v.update.sha256;
       ub.insertAdjacentHTML("beforeend",`<div class="banner" id="updBox"><b>Nova versão ${esc(v.update.version)} disponível.</b> ${esc(v.update.notes||"")} `+
         (auto?`<button class="btn" id="updBtn">Atualizar agora</button> <span id="updMsg"></span>`
-             :(v.update.url?`<a href="${esc(v.update.url)}" target="_blank" rel="noopener" style="color:#fff">Baixar</a>`:""))+`</div>`);
+             :((v.update.page||v.update.url)?`<a href="${esc(v.update.page||v.update.url)}" target="_blank" rel="noopener" style="color:#fff">Baixar</a>`:""))+`</div>`);
       if(auto) document.getElementById("updBtn").onclick=updateNow;
     }}catch(e){}
 }

@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.6.0
+- As versões novas agora vêm direto das releases do GitHub (com a impressão digital do .zip que o próprio GitHub calcula). Não é mais preciso Google Drive nem editar o aviso à mão: publicou a release, todo mundo recebe o "Atualizar agora".
+
 ## v2.5.3
 - Corrigido: campeões com poucas partidas de confronto (comum logo após um patch) apareciam como "Seguro às cegas" só porque os counters ainda não tinham aparecido nos dados. Agora o risco deles é estimado pelo típico da rota até haver partidas suficientes.
 - Aviso quando o patch saiu há pouco e ainda há poucas partidas.

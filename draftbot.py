@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.5.3"
+VERSION = "2.6.0"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -951,14 +951,31 @@ lcu = LCU()
 _update = {"checked": 0, "info": None}
 
 
+def from_release(d):
+    """Aceita a última release do GitHub (api.github.com/.../releases/latest) ou o version.json antigo do gist."""
+    if not isinstance(d, dict) or "tag_name" not in d:
+        return d if isinstance(d, dict) else {}
+    zips = [a for a in d.get("assets") or [] if str(a.get("name", "")).endswith("-windows.zip")]
+    if not zips:                       # release recém-criada, o .exe ainda está sendo gerado
+        return {}
+    a = zips[0]
+    notes = next((l.lstrip("-* ").strip() for l in str(d.get("body") or "").splitlines()
+                  if l.strip().startswith(("-", "*"))), "")[:300]
+    return {"version": str(d["tag_name"]).lstrip("vV"), "url": a.get("browser_download_url", ""),
+            "sha256": str(a.get("digest") or "").split(":")[-1], "notes": notes,
+            "page": d.get("html_url", "")}
+
+
 def update_info():
     if not UPDATE_URL:
         return None
     if time.time() - _update["checked"] > 3600:
         _update["checked"] = time.time()
         try:
-            with urllib.request.urlopen(urllib.request.Request(UPDATE_URL, headers={"User-Agent": f"DraftBot/{VERSION}"}), timeout=8) as r:
-                info = json.loads(r.read().decode("utf-8"))
+            req = urllib.request.Request(UPDATE_URL, headers={"User-Agent": f"DraftBot/{VERSION}",
+                                                              "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                info = from_release(json.loads(r.read().decode("utf-8")))
             def v(s):
                 return tuple(int(x) for x in re.findall(r"\d+", str(s)))
             _update["info"] = info if v(info.get("version", "0")) > v(VERSION) else None

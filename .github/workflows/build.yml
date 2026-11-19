@@ -42,9 +42,8 @@ jobs:
       - name: Testes do programa no Windows
         run: python -m unittest discover -s tests -t . -v
 
-      - name: Endereço do aviso de nova versão (variável UPDATE_URL do repositório)
-        if: ${{ vars.UPDATE_URL != '' }}
-        run: Set-Content -Path update_url.txt -Value "${{ vars.UPDATE_URL }}" -NoNewline
+      - name: Onde procurar versões novas (a última release deste repositório)
+        run: Set-Content -Path update_url.txt -Value "https://api.github.com/repos/${{ github.repository }}/releases/latest" -NoNewline
 
       - name: Gerar o DraftBot.exe (Nuitka)
         run: |
@@ -93,18 +92,14 @@ jobs:
           name: DraftBot-windows
           path: ${{ env.ZIP }}
 
-      - name: Publicar a release (privada, junto com o repositório)
+      - name: Anexar o .zip à release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $env:PYTHONUTF8 = "1"
-          $sha = (Get-FileHash $env:ZIP -Algorithm SHA256).Hash.ToLower()
           python tools/release_notes.py $env:VER | Out-File -Encoding utf8 notes.md
-          $gist = python tools/gist_json.py $env:VER $sha | Out-String
-          Add-Content -Encoding utf8 notes.md "`n---`n**Para publicar:** suba o .zip no Drive (qualquer pessoa com o link) e cole isto no ``version.json`` do gist, trocando o link:`n"
-          Add-Content -Encoding utf8 notes.md ('```json' + "`n" + $gist.Trim() + "`n" + '```')
           gh release view $env:GITHUB_REF_NAME *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:GITHUB_REF_NAME $env:ZIP --clobber

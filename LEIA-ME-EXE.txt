@@ -1,4 +1,4 @@
-DRAFTBOT 2.5.3 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.6 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
