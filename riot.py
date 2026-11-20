@@ -422,6 +422,8 @@ class Collector:
             for e in d.get("entries") or []:
                 if e.get("puuid"):
                     ps.append(e["puuid"])
+                elif e.get("summonerId"):           # respostas antigas: só o summonerId
+                    ps.append("sid:" + e["summonerId"])
         random.shuffle(ps)
         self.players, self.players_t = ps, time.time()
         self.old_players.clear()
@@ -437,6 +439,12 @@ class Collector:
                 self.players_t = 0
             return 0
         puuid = random.choice(cand)
+        if puuid.startswith("sid:"):
+            sm = self.api.get("platform", f"/lol/summoner/v4/summoners/{puuid[4:]}", stop=stop)
+            self.players = [sm.get("puuid") if p == puuid else p for p in self.players]
+            puuid = sm.get("puuid") or ""
+            if not puuid:
+                return 0
         ids = self.api.get("cluster", f"/lol/match/v5/matches/by-puuid/{puuid}/ids",
                            {"queue": QUEUE, "type": "ranked", "start": 0, "count": 20}, stop=stop)
         added = 0
