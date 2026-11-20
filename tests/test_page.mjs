@@ -116,13 +116,21 @@ await test("coluna Recomendações é igual para qualquer conta", async () => {
   assert(b.some(x => x.includes("VOCÊ NÃO TEM")), "marca campeões que a conta não tem");
 });
 
-await test("Seu pool usa a experiência pessoal e respeita a rota", async () => {
+await test("Seu pool: só os campeões da conta, com a mesma chance da coluna do meio", async () => {
   draft("adc"); __T.setAcct(JSON.parse(JSON.stringify(ACC.A))); await settle();
-  const p = rows("pool");
-  assert(p[0].includes("Ziggs") && p[0].includes("10 jogos"), p[0]);
+  const p = rows("pool"), r = rows("recs");
+  assert(p.some(x => x.includes("Ziggs") && x.includes("10 jogos")), p.join("\n"));
   assert(els.poolSub.textContent.includes("18 das suas 18"), els.poolSub.textContent);
-  const geral = __T.chanceOf("adc", "Jinx").p, pessoal = __T.chanceOf("adc", "Jinx", true).p;
-  assert(geral !== pessoal, "a chance pessoal deve diferir da geral");
+  const of = (l, n) => l.find(x => x.replace(/^\S+ /, "").startsWith(n + " "));
+  for (const n of ["Ziggs", "Jinx"]) {
+    const inPool = of(p, n), inRec = of(r, n);
+    const ch = x => x && (x.match(/(\d+,\d)%\s*chance/i) || [])[1];
+    const pc = ch(inPool), rc = ch(inRec);
+    assert(pc, `${n}: chance não encontrada no pool: ${inPool}`);
+    assert(!inRec || pc === rc, `${n}: pool ${pc} × recomendações ${rc}`);
+    assert(Math.abs(__T.chanceOf("adc", n).p - (parseFloat(pc.replace(",", ".")) / 100)) < 0.0006, `${n}: ${pc} × ${__T.chanceOf("adc", n).p} rec=${rc}`);
+  }
+  assert(!["Xayah", "Twitch", "Kai'Sa"].some(n => of(p, n)), "só campeões que a conta joga");
 });
 
 await test("rota inimiga fixada pelo usuário é respeitada", async () => {
@@ -194,15 +202,6 @@ await test("patch recém-saído: sem falso 'Seguro às cegas' e com aviso de pou
   assert(x.R.some(r => r[1].startsWith("Poucas partidas de confronto")), JSON.stringify(x.R));
   S.meta = META; delete __T.D.tables["adc|Xayah"]; await __T.loadMeta();
   assert(!strip(els.banner.innerHTML).includes("poucas partidas"));
-});
-
-await test("pool: 1 vitória não põe o campeão acima do que a média geral justifica", async () => {
-  draft("adc"); await settle();
-  __T.setAcct({ name: "X", games: [...g("Kog'Maw", "adc", 1, 1), ...g("Jinx", "adc", 30, 21)], mastery: [], owned: ["Kog'Maw", "Jinx"] });
-  const um = __T.chanceOf("adc", "Kog'Maw", true), muitos = __T.chanceOf("adc", "Jinx", true);
-  assert(um.p <= um.pGeral + 0.002, `1 jogo: ${um.pGeral} → ${um.p}`);
-  assert(muitos.p >= muitos.pGeral + 0.02, `30 jogos a 70%: ${muitos.pGeral} → ${muitos.p}`);
-  __T.setAcct(null);
 });
 
 console.log(`\n${passed} ok, ${failed} falharam`);

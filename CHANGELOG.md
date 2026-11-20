@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.6.2
+- "Seu pool" agora mostra exatamente a mesma chance da coluna Recomendações, só que filtrada para os campeões que você joga (com seus jogos, KDA e maestria ao lado, sem mexer na porcentagem).
+
 ## v2.6.1
 - Corrigido: no "Seu pool", 1 ou 2 vitórias com um campeão davam um bônus grande demais (ex.: Nautilus com 1 jogo passava o 1º recomendado). Agora o seu resultado só pesa de verdade com dezenas de partidas.
 - No "Seu pool", a chance mostra "para você" e, embaixo, a chance geral (a mesma da coluna do meio), para comparar.

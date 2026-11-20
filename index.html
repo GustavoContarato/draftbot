@@ -115,7 +115,6 @@ input.bad{border-color:#7a2f2a}
 .alt{font-size:11.5px;color:var(--mu);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 footer{color:var(--mu);font-size:11.5px;margin-top:22px;line-height:1.7;border-top:1px solid var(--ln);padding-top:14px}
 footer a{color:#ddd}
-.geral{font-size:10px;color:#888;margin:-2px 0 4px;text-align:right}
 .banner.note{border-left-color:#777}
 .banner{border:1px solid var(--ln2);border-left:2px solid var(--red);padding:10px 12px;border-radius:8px;font-size:12.5px;color:#ccc;margin-bottom:14px}
 .chance{font-size:20px;font-weight:700;line-height:1}
@@ -641,8 +640,7 @@ function recRow(x,i,role,opts){
   return `<div class="rec ${i===0&&!opts.off?"top":""} ${opts.off?"off":""}"><div class="rk">${opts.off?"–":i+1}</div>
     <div><div class="rn">${x.n}${tags}</div>${opts.personal||""}
     ${opts.off?"":`<div class="why">${chips.map(r=>`<span class="${r[0]}">${r[1]}</span>`).join("")}</div>`}</div>
-    <div class="sc">${opts.off?"":chanceCell(x.p,opts.personal&&x.pGeral!=null?"para você":"")+
-      (opts.personal&&x.pGeral!=null?`<div class="geral">geral ${pct(x.pGeral)}</div>`:"")+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
+    <div class="sc">${opts.off?"":chanceCell(x.p)+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
 }
 function renderRecs(){
   const role=st.role; document.getElementById("recTitle").textContent=`Recomendações · ${RLABEL[role]}`;
@@ -690,7 +688,7 @@ function renderPool(){
   const P=playerPool(role), taken=new Set([...teamList("ally",role),...teamList("enemy"),...st.bans]), opp=resolve(st.enemy[role]);
   sub.textContent=P.games?`${P.games} das suas ${D.acct.games.length} ranqueadas recentes foram de ${RLABEL[role]}`:`Nenhuma das suas ${D.acct.games.length} ranqueadas recentes foi de ${RLABEL[role]}`;
   if(!P.list.length){ el.innerHTML=`<div class="empty">Você não tem campeões jogados nem com maestria alta para ${RLABEL[role]}. Use as recomendações.</div>`; return; }
-  const rows=P.list.map(o=>{const why=taken.has(o.n)?"BANIDO/ESCOLHIDO":unavailable(o.n)?"VOCÊ NÃO TEM":""; return Object.assign(chanceOf(role,o.n,true),{o,why});});
+  const rows=P.list.map(o=>{const why=taken.has(o.n)?"BANIDO/ESCOLHIDO":unavailable(o.n)?"VOCÊ NÃO TEM":""; return Object.assign(chanceOf(role,o.n),{o,why});});  // mesma chance da coluna do meio
   rows.sort((a,b)=>(!!a.why-!!b.why)||(b.p-a.p));
   const okRows=rows.filter(r=>!r.why&&r.laneP!=null); const bestVs=opp&&okRows.length?okRows.reduce((a,b)=>b.laneP>a.laneP?b:a):null;
   el.innerHTML=rows.map((x,i)=>recRow(x,i,role,{off:!!x.why,personal:personalLine(x.o),max:4,

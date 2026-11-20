@@ -43,8 +43,8 @@ ainda é incerta. "Seguro às cegas" só aparece para quem já tem partidas de
 confronto suficientes no patch.
 A coluna Recomendações é igual para qualquer conta: só depende do patch e da
 seleção. Campeões que você não tem aparecem marcados ("você não tem"), não
-escondidos. A coluna Seu pool soma a isso a sua experiência e o seu resultado
-com cada campeão.
+escondidos. A coluna Seu pool usa a mesma chance, mostrando só os campeões
+que você joga.
 
 SEU POOL
 O programa lê da conta LOGADA no cliente as suas ranqueadas recentes
