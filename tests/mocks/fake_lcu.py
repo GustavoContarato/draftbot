@@ -166,6 +166,9 @@ class FakeLCU:
                  "perks": [{"id": i} for i in (8465, 8463, 8473, 8451, 8304, 8345, 5008, 5008, 5001)]}])
         if p == "/api/versions.json":
             return h.j(["16.23.1", "16.22.1"])
+        if p == "/cdn/16.23.1/data/en_US/item.json":
+            from tests.mocks.fake_riot import ITEMS_JSON
+            return h.j(ITEMS_JSON)
         if p == "/cdn/16.23.1/data/en_US/champion.json":
             return h.j({"data": {a: {"id": a, "key": str(i), "name": n} for i, a, n in CHAMPS}})
         if p.startswith("/cdn/16.23.1/img/champion/"):

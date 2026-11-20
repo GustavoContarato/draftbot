@@ -72,6 +72,10 @@ input.bad{border-color:#7a2f2a}
 .tag.hot{border-color:var(--red);color:#fff}
 .note{font-size:11.5px;color:var(--mu);margin-top:8px}
 .recs{display:flex;flex-direction:column}
+.rs{font-size:10.5px;color:var(--mu);margin-left:8px;font-weight:400}
+.mp{color:#bbb}
+.riotk{display:flex;gap:6px;margin-top:7px}
+.riotk input{flex:1}
 .ic{width:18px;height:18px;border-radius:4px;object-fit:cover;vertical-align:-4px;margin-right:6px;flex:none;background:#111}
 .ic.c{width:24px;height:24px;border-radius:5px;margin-right:2px;outline:1px solid var(--ln2)}
 .ic.xs{width:15px;height:15px;border-radius:3px;margin-right:2px;vertical-align:-3px}
@@ -195,6 +199,8 @@ body.compact #fullLink{display:inline}
     <div class="chips" id="banChips"></div>
     <div class="sep"></div>
     <div id="analysis"></div>
+    <div class="sep" id="riotSep" style="display:none"></div>
+    <div id="riotBox"></div>
   </section>
   <section class="card">
     <h2 id="recTitle">Recomendações</h2>
@@ -212,7 +218,8 @@ body.compact #fullLink{display:inline}
 
 <footer>
   <b>Chance estimada:</b> parte da taxa de vitória real do campeão na rota no patch atual (puxada para 50% quando há poucas partidas) e ajusta pelo confronto contra o seu oponente de rota, pelo risco de ser counterado quando você escolhe às cegas, pela sinergia medida com cada aliado e pela composição dos dois times. A coluna <b>Recomendações</b> é igual para qualquer conta: só depende do patch e desta seleção (campeões que você não tem aparecem marcados, não escondidos). A coluna <b>Seu pool</b> mostra a mesma chance, só para os campeões que você joga, com o seu histórico em ranqueadas (solo/duo, flex e Clash) ao lado. É uma estimativa para comparar opções, não uma previsão exata.
-  Estatísticas de partidas ranqueadas da <a href="https://op.gg" target="_blank" rel="noopener">OP.GG</a>, atualizadas diariamente.
+  Estatísticas de partidas ranqueadas da <a href="https://op.gg" target="_blank" rel="noopener">OP.GG</a>, atualizadas diariamente, e, se você colocar a sua chave, de partidas Mestre+ do patch coletadas pela API oficial da Riot.
+  <br><span style="opacity:.7">O DraftBot não é endossado pela Riot Games e não reflete as opiniões da Riot Games nem de ninguém oficialmente envolvido na produção ou gestão das propriedades da Riot Games. Riot Games e todas as propriedades associadas são marcas comerciais ou registradas da Riot Games, Inc.</span>
   <div class="foot"><span id="verTxt">DraftBot</span><button class="btn" id="diagBtn" style="display:none">Copiar diagnóstico</button><span class="msg" id="diagMsg"></span></div>
   <div id="diagBox"></div>
 </footer>
@@ -444,7 +451,8 @@ function want(kind,key,path){
 }
 const tableOf=(role,champ)=>want("tables",role+"|"+champ,`/api/table?pos=${OPOS[role]}&champ=${encodeURIComponent(champ)}`);
 const synOf=(champ,role,target)=>want("syn",[champ,role,target].join("|"),`/api/synergy?champ=${encodeURIComponent(champ)}&pos=${OPOS[role]}&target=${OPOS[target]}`);
-const buildOf=(role,champ,opp)=>want("builds",[role,champ,opp||""].join("|"),`/api/build?pos=${OPOS[role]}&champ=${encodeURIComponent(champ)}&opp=${encodeURIComponent(opp||"")}`);
+const compOf=()=>{const e=analyze(teamList("enemy")); return e.n<2?"":e.apPct>=0.55?"ap":e.apPct<=0.30?"ad":"mix";};
+const buildOf=(role,champ,opp)=>{const cp=compOf(); return want("builds",[role,champ,opp||"",cp].join("|"),`/api/build?pos=${OPOS[role]}&champ=${encodeURIComponent(champ)}&opp=${encodeURIComponent(opp||"")}&comp=${cp}`);};
 let upTimer=null; function scheduleUpdate(){clearTimeout(upTimer);upTimer=setTimeout(update,80);}
 const META_IDX={};
 function metaEntry(role,n){ if(!D.meta) return null; const k=role; if(!META_IDX[k]){META_IDX[k]={}; (D.meta.positions[OPOS[role]]||[]).forEach(x=>{const r=resolve(x.champion); if(r) META_IDX[k][r]=x;});} return META_IDX[k][n]||null; }
@@ -769,6 +777,22 @@ async function sendRunes(n,rp,msgEl){ if(msgEl) msgEl.textContent="Enviando…";
 async function sendItems(body,msgEl){ if(msgEl) msgEl.textContent="Enviando…";
   try{const d=await post("/api/itemset",body); if(msgEl) msgEl.textContent=d.ok?"Conjunto “DraftBot” criado na loja.":"Não deu: "+d.error; return d.ok;}
   catch(e){ if(msgEl) msgEl.textContent="O programa não respondeu."; return false; } }
+const PERKN=id=>(PERKS_NAMES&&PERKS_NAMES[id])||"";
+let PERKS_NAMES=null;
+function riotItems(b,opp){
+  const R=b.riot; if(!R) return "";
+  const chain=k=>`<span class="chain">${String(k).split(",").map(id=>`<span class="itm">${ICON("item",id)}${itemName(+id)}</span>`).join('<span class="ar">›</span>')}</span>`;
+  const st=x=>`<span class="m">${pct(x.wr)} · ${kfmt(x.n)}</span>`;
+  const core=(R.core3&&R.core3.length?R.core3:R.core2||[]).slice(0,3);
+  let h=`<div class="sub mp">Mestre+ do patch · ${kfmt(R.n)} partidas (API da Riot)</div>`;
+  h+=core.map(x=>`<div class="row"><span>${chain(x.key)}</span>${st(x)}</div>`).join("")||`<div class="note">Ainda poucas partidas com este campeão.</div>`;
+  if(R.boots&&R.boots[0]) h+=`<div class="row"><span>${chain(R.boots[0].key)}</span>${st(R.boots[0])}</div>`;
+  if(R.comp&&R.comp.items&&R.comp.items.length) h+=`<div class="sub" style="color:var(--red)">Contra time de dano ${R.comp.type==="ap"?"mágico":"físico"} · ${kfmt(R.comp.n)} partidas</div>`+
+    R.comp.items.map(x=>`<div class="row"><span>${chain(x.key)}</span><span class="m">+${(x.lift*100).toFixed(1).replace(".",",")} pts · ${pct(x.wr)}</span></div>`).join("");
+  if(R.vs&&R.vs.n>=8){ h+=`<div class="sub">Contra ${opp} · ${pct(R.vs.wr)} em ${kfmt(R.vs.n)} partidas</div>`+
+    (R.vs.core2||[]).slice(0,2).map(x=>`<div class="row"><span>${chain(x.key)}</span>${st(x)}</div>`).join(""); }
+  return h;
+}
 function renderBuild(){
   const el=document.getElementById("build"), role=st.role, n=resolve(st.ally[role])||previewChamp;
   if(!n||D.offMode){el.innerHTML="";return;}
@@ -787,11 +811,13 @@ function renderBuild(){
   const iname=(g,id,i)=>g.names&&g.names[i]&&isNaN(g.names[i])?g.names[i]:itemName(id);
   const it=g=>g&&g.ids.length?`<span class="chain">${g.ids.map((id,i)=>`<span class="itm">${ICON("item",id)}${iname(g,id,i)}</span>`).join('<span class="ar">›</span>')}</span>`:"—";
   const sty=id=>id?`${ICON("style",id,"sty")}${STYLE[id]||""}`:"";
-  const runeRows=rp?rp.names.map((nm,i)=>`<div class="row ${i===0?"ks":""}"><span>${ICON("perk",rp.ids[i],"r")}${nm}</span>${i===4?`<span class="m">${sty(rp.secondary)}</span>`:i===0?`<span class="m">${sty(rp.primary)}</span>`:""}</div>`).join("")+`<div class="row"><span class="chain">${rp.ids.slice(6).map(s=>`<span class="itm">${ICON("perk",s,"r xs")}${SHARD[s]||s}</span>`).join('<span class="ar">·</span>')}</span></div>`:"<div class='note'>Sem dados de runas.</div>";
-  const pageLabel=p=>p.src==="matchup"?`Contra ${opp}`:p.src==="general"?"Mais usada no geral":"Sugestão do cliente (Riot)";
-  const pageStat=p=>p.play?`${pct(p.win/p.play)} · ${kfmt(p.play)} jogos`:"sem estatística";
+  const R=b.riot, rslot=(i,id)=>{if(!R||!R.slots)return null; const k=i<4?"p"+i:i<6?"s":"sh"+(i-6); const x=(R.slots[k]||{})[String(id)]; return x&&x.n>=10?x:null;};
+  const rst=(i,id)=>{const x=rslot(i,id); return x?`<span class="rs" title="Mestre+ do patch (Riot): ${x.n} partidas com esta runa">${pct(x.wr)} · ${kfmt(x.n)}</span>`:"";};
+  const runeRows=rp?rp.names.map((nm,i)=>`<div class="row ${i===0?"ks":""}"><span>${ICON("perk",rp.ids[i],"r")}${nm||PERKN(rp.ids[i])}${rst(i,rp.ids[i])}</span>${i===4?`<span class="m">${sty(rp.secondary)}</span>`:i===0?`<span class="m">${sty(rp.primary)}</span>`:""}</div>`).join("")+`<div class="row"><span class="chain">${rp.ids.slice(6).map(s=>`<span class="itm">${ICON("perk",s,"r xs")}${SHARD[s]||s}</span>`).join('<span class="ar">·</span>')}</span></div>`:"<div class='note'>Sem dados de runas.</div>";
+  const pageLabel=p=>p.src==="matchup"?`Contra ${opp}`:p.src==="general"?"Mais usada no geral":p.src==="riot-stats"?"Mestre+ do patch (API da Riot)":"Sugestão do cliente (Riot)";
+  const pageStat=p=>(p.play?`${pct(p.win/p.play)} · ${kfmt(p.play)} jogos`:"sem estatística")+(p.master&&p.src!=="riot-stats"?`<br><span class="pm">Mestre+: ${pct(p.master.w/p.master.n)} · ${kfmt(p.master.n)}</span>`:"");
   const pagesHtml=b.runes.length>1?`<div class="pages">${b.runes.map((p,i)=>`<button class="pg ${p===rp?"on":""}" data-page="${i}">${ICON("perk",p.ids[0],"r")}${ICON("style",p.secondary,"sty")}
-      <span><span class="pn">${p.names[0]||p.label||"Página"}</span>${p.rec?'<span class="tg">RECOMENDADA</span>':""}<br><span class="pm">${pageLabel(p)} · ${STYLE[p.primary]||""} + ${STYLE[p.secondary]||""}</span></span>
+      <span><span class="pn">${p.names[0]||p.label||PERKN(p.ids[0])||"Página"}</span>${p.rec?'<span class="tg">RECOMENDADA</span>':""}<br><span class="pm">${pageLabel(p)} · ${STYLE[p.primary]||""} + ${STYLE[p.secondary]||""}</span></span>
       <span class="pr">${pageStat(p)}</span></button>`).join("")}</div>`:"";
   const spells=b.spells[0]?`<span class="chain">${b.spells[0].ids.map(i=>`<span class="itm">${ICON("spell",i)}${SPELL[i]||i}</span>`).join('<span class="ar">+</span>')}</span>`:"—";
   const vsRare=vs&&vs.p<300;
@@ -806,6 +832,7 @@ function renderBuild(){
    <div class="cols">
     <div class="box"><div class="sub">Runas ${b.runes.length>1?`· ${b.runes.length} opções`:src+(rp&&rp.play?` · ${pct(rp.pick)} usam · ${kfmt(rp.play)} jogos`:"")}</div>${pagesHtml}${runeRows}
       <div class="sub">Feitiços</div><div class="row"><span>${spells}</span></div>
+      ${R&&R.spells&&R.spells[0]?`<div class="note mp">Mestre+: ${R.spells.slice(0,2).map(x=>`${x.key.split(",").map(i=>SPELL[i]||i).join(" + ")} ${pct(x.wr)} (${kfmt(x.n)})`).join(" · ")}</div>`:""}
       <div class="skillbox"><div class="sub">Habilidades ${b.priority.length?"· prioridade "+b.priority.join(" › "):""}</div>${skillGrid(b.order)||"<div class='note'>—</div>"}</div>
       <div class="acts"><button class="btn pri" id="sendRunes" ${rp&&rp.ids.length===9?"":"disabled"}>Enviar runas</button><span class="msg" id="runeMsg"></span></div>
     </div>
@@ -814,6 +841,7 @@ function renderBuild(){
       ${b.core.slice(1,3).map(x=>`<div class="row"><span>${it(x)}</span><span class="m">${pct(x.pick)}</span></div>`).join("")}
       <div class="sub">Botas</div><div class="row"><span>${sit.boots?`<b>${itemName(sit.boots.id)}</b>`:it(b.boots[0])}</span>${sit.boots?`<span class="m">${sit.boots.why}</span>`:""}</div>
       ${sit.list.length?`<div class="sub" style="color:var(--red)">Situacionais deste jogo</div>${sit.list.map(s=>`<div class="sitem">${ICON("item",s.id)}<b>${itemName(s.id)}</b> <span>· ${s.why}</span></div>`).join("")}`:""}
+      ${riotItems(b,opp)}
       <div class="late"><div class="sub">Itens finais populares</div>${b.late.slice(0,6).map(l=>`<div class="row"><span>${it(l)}</span><span class="m">${pct(l.pick)}</span></div>`).join("")||"—"}</div>
       <div class="acts"><button class="btn" id="sendItems">Enviar build para a loja</button><span class="msg" id="itemMsg"></span></div>
     </div>
@@ -926,8 +954,36 @@ async function updateNow(){
     setTimeout(()=>{try{window.close();}catch(e){}},1200);
   }catch(e){ msg.textContent="Não deu para atualizar agora. Tente de novo."; btn.disabled=false; }
 }
-async function loadVersion(){
-  try{const r=await fetch("/api/version",{cache:"no-store"}); const v=await r.json(); document.getElementById("verTxt").textContent="DraftBot "+v.version;
+// dados Mestre+ pela API da Riot (chave do próprio usuário)
+let RIOT={}, riotEditing=false;
+async function loadRiot(){
+  try{ RIOT=await api("/api/riot"); }catch(e){ return; }
+  if(!riotEditing) renderRiot();
+}
+function renderRiot(msg){
+  const el=document.getElementById("riotBox"); if(!el||!LIVE) return;
+  document.getElementById("riotSep").style.display="block";
+  const r=RIOT||{}, edit=riotEditing||!r.hasKey;
+  const state=r.state==="coletando"?`Coletando partidas Mestre+ do patch ${patchName(r.patch)} (${esc(r.region||"")})`:
+    r.state==="chave inválida"?`<span style="color:var(--red)">${esc(r.error||"Chave recusada.")}</span>`:esc(r.state||"");
+  el.innerHTML=`<div class="lbl">Dados Mestre+ (API da Riot)</div>
+   ${r.hasKey||r.matches?`<div class="note" style="margin:6px 0 0">${state}${r.matches?` · <b>${kfmt(r.matches)}</b> partidas${r.remote?` (${kfmt(r.remote)} da coleta diária)`:""}`:""}${r.error&&r.state!=="chave inválida"?` · <span class="m">${esc(r.error)}</span>`:""}</div>`:""}
+   ${edit?`<div class="note" style="margin:6px 0 0">Opcional: com uma chave gratuita da Riot o DraftBot junta partidas de jogadores Mestre+ do patch e mostra a taxa de vitória de cada runa, as builds em ordem e o que funciona contra o time inimigo. Pegue a chave em <a href="https://developer.riotgames.com" target="_blank" rel="noopener">developer.riotgames.com</a> (entre com a conta da Riot e copie a “Development API Key”).</div>
+     <div class="riotk"><input type="password" id="riotKey" placeholder="RGAPI-…" autocomplete="off"><button class="btn" id="riotSave">Salvar</button>${r.hasKey?`<button class="btn" id="riotCancel">Cancelar</button>`:""}</div>`
+    :`<div class="note" style="margin:4px 0 0"><span class="alt" id="riotEdit">trocar chave</span> · <span class="alt" id="riotDel">remover</span></div>`}
+   ${msg?`<div class="note" style="margin:4px 0 0">${msg}</div>`:""}`;
+  const save=document.getElementById("riotSave");
+  if(save) save.onclick=async()=>{ const k=document.getElementById("riotKey").value.trim(); if(!k) return;
+    save.disabled=true; renderRiotMsg("Conferindo a chave com a Riot…");
+    const res=await post("/api/riot",{key:k}); riotEditing=false;
+    if(res.ok){ await loadRiot(); renderRiot("Chave salva. A coleta começou."); } else { riotEditing=true; renderRiot(`<span style="color:var(--red)">${esc(res.error||"Não deu certo.")}</span>`); } };
+  const c=document.getElementById("riotCancel"); if(c) c.onclick=()=>{riotEditing=false;renderRiot();};
+  const ed=document.getElementById("riotEdit"); if(ed) ed.onclick=()=>{riotEditing=true;renderRiot();};
+  const del=document.getElementById("riotDel"); if(del) del.onclick=async()=>{ await post("/api/riot",{key:""}); await loadRiot(); };
+}
+function renderRiotMsg(m){ const el=document.getElementById("riotBox"); if(el) el.insertAdjacentHTML("beforeend",`<div class="note" style="margin:4px 0 0">${m}</div>`); }
+async function loadVersion(force){
+  try{const r=await fetch("/api/version"+(force?"?force=1":""),{cache:"no-store"}); const v=await r.json(); document.getElementById("verTxt").textContent="DraftBot "+v.version;
     const ub=document.getElementById("updBanner"); ub.innerHTML="";
     if(v.updated&&v.updated.result==="ok") ub.insertAdjacentHTML("beforeend",`<div class="banner note">DraftBot atualizado para a versão ${esc(v.updated.version)}.</div>`);
     if(v.updated&&v.updated.result==="falhou") ub.insertAdjacentHTML("beforeend",`<div class="banner">Não consegui instalar a versão ${esc(v.updated.version)}; você continua na ${esc(v.version)}. Baixe a versão nova pelo link do aviso.</div>`);
@@ -954,7 +1010,8 @@ const sendChk=document.getElementById("autoSend"); sendChk.checked=autoSend;
 sendChk.onchange=()=>{autoSend=sendChk.checked; try{localStorage.setItem("draftbotAutoSend",autoSend?"1":"0");}catch(e){}};
 
 if(LIVE){ ["autoWrap","sendWrap"].forEach(i=>document.getElementById(i).style.display="flex"); ["compactBtn","diagBtn"].forEach(i=>document.getElementById(i).style.display="inline-block");
-  setStatus("idle","Conectando…"); loadMeta(); loadVersion(); poll();
+  setStatus("idle","Conectando…"); loadMeta(); loadVersion(true); poll(); loadRiot();
+  setInterval(loadRiot,30000); setInterval(()=>loadVersion(),15*60000);
   setInterval(()=>{ if(D.metaT&&Date.now()-D.metaT>=META_REFRESH_MS) loadMeta(); },60000); }
 else document.getElementById("banner").innerHTML=`<div class="banner">Versão online: preenchimento manual e recomendações só pela composição. Para estatísticas do patch atual, leitura automática do cliente, da sua conta e envio de runas, abra pelo programa DraftBot no seu PC.</div>`;
 

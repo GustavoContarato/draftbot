@@ -540,6 +540,105 @@ class RunasEIcones(unittest.TestCase):
             urllib.request.urlopen(f"{base}/api/icon?k=../../x&id=1", timeout=5)
 
 
+class DadosRiot(unittest.TestCase):
+    """Chave da Riot, coleta no PC, soma com a coleta do GitHub e uso na build."""
+
+    @classmethod
+    def setUpClass(cls):
+        from tests.mocks.fake_riot import FakeRiot, GOOD_KEY, make_match, ITEMS_JSON
+        import riot as R
+        import http.server
+        import functools
+        cls.GOOD = GOOD_KEY
+        cls.fake = FakeRiot().start()
+        # "coleta do GitHub": 25 partidas diferentes das do servidor falso
+        remote = R.new_stats("16.23", "BR")
+        for i in range(25):
+            m, tl = make_match(f"GH_{i}", seed=500 + i)
+            R.add_match(remote, m, tl, R.ItemInfo(ITEMS_JSON))
+            remote["ids"].append(f"GH_{i}")
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "riot-BR-16.23.json"), "w") as f:
+            json.dump(remote, f)
+        cls.files = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(
+            http.server.SimpleHTTPRequestHandler, directory=d))
+        threading.Thread(target=cls.files.serve_forever, daemon=True).start()
+        cls.old_dd = DB.DDRAGON
+        DB.DDRAGON = f"http://127.0.0.1:{LCU.port}"
+        DB.icons.dd = {"t": 0, "v": None, "map": {}}
+        svc = DB.riotsvc
+        svc.api_base = cls.fake.url
+        svc.remote_base = f"http://127.0.0.1:{cls.files.server_address[1]}"
+        svc.patch = "16.23"
+
+    @classmethod
+    def tearDownClass(cls):
+        DB.riotsvc.set_key("")
+        DB.DDRAGON = cls.old_dd
+        DB.icons.dd = {"t": 0, "v": None, "map": {}}
+        cls.files.shutdown()
+
+    def post(self, body):
+        return api("/api/riot", "POST", body, {"X-DraftBot": "1"})[1]
+
+    def test_fluxo_completo(self):
+        r = self.post({"key": "minha chave"})
+        self.assertFalse(r["ok"])
+        self.assertIn("RGAPI", r["error"])
+        r = self.post({"key": "RGAPI-99999999-1111-2222-3333-444444444444"})
+        self.assertFalse(r["ok"])
+        self.assertIn("recusou", r["error"])
+        self.assertFalse(api("/api/riot")[1]["data"]["hasKey"])
+        r = self.post({"key": self.GOOD})
+        self.assertTrue(r["ok"], r)
+        with open(DB.RIOT_KEY_FILE) as f:
+            self.assertEqual(f.read(), self.GOOD)
+        t0 = time.time()
+        while time.time() - t0 < 30:
+            info = api("/api/riot")[1]["data"]
+            if info["local"] >= 60:
+                break
+            time.sleep(0.3)
+        self.assertEqual(info["state"], "coletando", info)
+        self.assertEqual(info["local"], 60)
+        self.assertEqual(info["remote"], 25)
+        DB.riotsvc.comb_t = 0
+        self.assertEqual(api("/api/riot")[1]["data"]["matches"], 85, "coleta do PC + do GitHub")
+        st, r = api("/api/build?pos=adc&champ=Jinx&opp=Ezreal&comp=ap")
+        self.assertTrue(r["ok"], r)
+        rs = r["data"]["riot"]
+        self.assertEqual(rs["n"], 85)
+        self.assertEqual(rs["vs"]["opp"], "Ezreal")
+        self.assertGreater(rs["slots"]["p0"]["8008"]["wr"], rs["slots"]["p0"]["8021"]["wr"])
+        pages = r["data"]["runes"]
+        self.assertTrue(any(p.get("master") for p in pages), pages)
+        self.assertEqual(sum(1 for p in pages if p.get("rec")), 1)
+        self.assertTrue(pages[0].get("rec"))
+        # sem chave: para de coletar, mas os dados já juntados continuam valendo
+        self.assertTrue(self.post({"key": ""})["ok"])
+        info = api("/api/riot")[1]["data"]
+        self.assertFalse(info["hasKey"])
+        self.assertFalse(os.path.exists(DB.RIOT_KEY_FILE) and open(DB.RIOT_KEY_FILE).read())
+
+    def test_recomenda_a_melhor_pagina_com_dados_suficientes(self):
+        import riot as R
+        from tests.mocks.fake_riot import make_match, ITEMS_JSON
+        s = R.new_stats("16.23", "BR")
+        for i in range(260):
+            m, tl = make_match(f"Z{i}", seed=1000 + i)
+            R.add_match(s, m, tl, R.ItemInfo(ITEMS_JSON))
+        old = DB.riotsvc.combined
+        DB.riotsvc.combined = lambda: s
+        try:
+            st, r = api("/api/build?pos=adc&champ=Jinx&opp=Ezreal")
+        finally:
+            DB.riotsvc.combined = old
+        rec = r["data"]["runes"][0]
+        self.assertTrue(rec["rec"])
+        self.assertEqual(rec["ids"][0], 8008, "Ritmo Fatal ganha mais nos dados Mestre+")
+        self.assertIn("master", rec)
+
+
 class AvisoDoGitHub(unittest.TestCase):
     """Versão nova lida direto da última release do GitHub (com a impressão digital do .zip)."""
 

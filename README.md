@@ -43,6 +43,18 @@ digital (sha256) que o GitHub informa para ele.
 
 Para mandar o DraftBot a alguém: `https://github.com/<usuário>/draftbot/releases/latest`.
 
+## Dados Mestre+ (API da Riot)
+
+- `riot.py` coleta partidas ranqueadas Mestre+ do patch (match-v5 + timeline) e agrega por campeão/rota:
+  runas por posição, páginas, feitiços, ordem de habilidades, itens em ordem, recorte contra o oponente
+  de rota e contra time de dano mágico/físico. As contagens são somáveis (`riot.merge`).
+- No PC: o usuário cola a chave no DraftBot (`chave_riot.txt` em `%LOCALAPPDATA%\DraftBot`) e a coleta roda
+  enquanto o programa está aberto, salvando em `riot_<região>_<patch>.json`.
+- No GitHub: `.github/workflows/coleta.yml` roda a cada 4 h **se** o segredo `RIOT_API_KEY` existir
+  (Settings → Secrets and variables → Actions → New repository secret). Use a Personal API Key (a de
+  desenvolvimento vence em 24 h). O arquivo `riot-BR-<patch>.json` vai para a release `dados-riot`
+  (pré-lançamento, não aparece como versão), e todo DraftBot baixa e soma.
+
 ## Observações
 
 - O `.exe` não tem assinatura digital; o Windows/antivírus podem alertar nas primeiras vezes (explicado no LEIA-ME).

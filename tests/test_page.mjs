@@ -42,6 +42,7 @@ globalThis.fetch = async (url) => {
   }
   if (u.pathname === "/api/synergy") return ok([]);
   if (u.pathname === "/api/build" && S.build) return ok(S.build);
+  if (u.pathname === "/api/riot") return ok(S.riot || { hasKey: false, state: "sem chave", matches: 0 });
   return fail("não simulado: " + u.pathname);
 };
 
@@ -49,7 +50,7 @@ globalThis.fetch = async (url) => {
 globalThis.__T = {};
 (0, eval)(script.replace("setTimeout(poll,1000);", "") +
   `;Object.assign(globalThis.__T,{st:()=>st,D,update,rankRole,chanceOf,placeEnemies,resolve,EMPTY,loadMeta,
-     registerChamp,metaEntry,blindProfile,setAcct:a=>{D.acct=a;}});`);
+     registerChamp,metaEntry,blindProfile,loadRiot,setAcct:a=>{D.acct=a;}});`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---------- mini framework ----------
@@ -222,6 +223,34 @@ await test("build: várias páginas de runas, a recomendada primeiro, e ícones 
   for (const k of ["champ&id=Jinx", "perk&id=8008", "style&id=8400", "item&id=3031", "spell&id=4"])
     assert(h.includes("/api/icon?k=" + k), "ícone " + k);
   assert(strip(els.recs.innerHTML).length && els.recs.innerHTML.includes("/api/icon?k=champ"), "ícones nas recomendações");
+  S.build = null;
+});
+
+await test("dados Mestre+ da Riot: % por runa, builds e itens contra o tipo de time", async () => {
+  const pg = (src, ids, extra = {}) => Object.assign({ src, primary: 8000, secondary: 8400, ids, names: ids.slice(0, 6).map(i => "R" + i),
+    play: 3000, win: 1600, pick: 0.4 }, extra);
+  const st = (n, w) => ({ n, w, wr: w / n });
+  S.build = { champ: "Jinx", pos: "adc", opp: "Ezreal", vs: null, tip: "", advantage: "", style: "", source: "general", note: "",
+    runes: [pg("riot-stats", [8008, 9111, 9104, 8014, 8473, 8451, 5005, 5008, 5011], { rec: true, play: 300, win: 170, master: { n: 300, w: 170 } }),
+            pg("general", [8021, 9111, 9104, 8014, 8473, 8451, 5005, 5008, 5011], { master: { n: 80, w: 35 } })],
+    starter: [], core: [], boots: [], spells: [{ ids: [4, 7] }], late: [], order: [], priority: [],
+    riot: { n: 380, w: 205, wr: 0.54, slots: { p0: { "8008": st(300, 170), "8021": st(80, 35) }, s: { "8473": st(380, 205) } },
+      spells: [{ key: "4,7", n: 350, w: 190, wr: 0.543 }], core3: [{ key: "3031,3085,3036", n: 120, w: 70, wr: 0.583 }],
+      boots: [{ key: "3006", n: 360, w: 195, wr: 0.54 }],
+      comp: { type: "ap", n: 150, w: 80, items: [{ key: "3156", n: 40, w: 27, wr: 0.675, lift: 0.08 }] },
+      vs: { opp: "Ezreal", n: 60, w: 33, wr: 0.55, core2: [{ key: "3031,3085", n: 30, w: 18, wr: 0.6 }] } } };
+  S.riot = { hasKey: true, state: "coletando", patch: "16.23", region: "BR", matches: 380, local: 300, remote: 80 };
+  draft("adc", { adc: "Ezreal" }, { adc: "Jinx" }); await settle(); await __T.loadRiot();
+  const h = strip(els.build.innerHTML);
+  assert(h.includes("Mestre+ do patch (API da Riot)"), "página Mestre+");
+  assert(h.includes("56,7% · 300"), "% da runa na página: " + h.slice(0, 400));
+  assert(h.includes("Contra time de dano mágico") && h.includes("+8,0 pts"), "item contra o tipo de time");
+  assert(h.includes("Contra Ezreal · 55,0% em 60 partidas"), "recorte do oponente");
+  assert(h.includes("Mestre+: 43,8% · 80"), "estatística Mestre+ ao lado da página da OP.GG");
+  const box = strip(els.riotBox.innerHTML);
+  assert(box.includes("Coletando partidas Mestre+ do patch 26.23") && box.includes("380 partidas"), box);
+  S.riot = null; await __T.loadRiot();
+  assert(strip(els.riotBox.innerHTML).includes("developer.riotgames.com"), "sem chave: explica como conseguir");
   S.build = null;
 });
 

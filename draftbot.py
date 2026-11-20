@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.7.1"
+VERSION = "2.8.0"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -351,6 +351,10 @@ class OPGG:
             ov = ((self.prev["entries"].get(mkey) or {}).get("v") or {})
             opos = (ov.get("data") or {}).get("positions") or {}
             out = {p: self._mix_meta(out[p], [x for x in (opos.get(p) or []) if isinstance(x, dict)], w) for p in out}
+        try:
+            riotsvc.ensure(version)
+        except NameError:
+            pass
         return {"version": version, "positions": out, "blend": self.blend_info(version)}
 
     # ---------- virada de patch ----------
@@ -583,13 +587,26 @@ class OPGG:
 
 
 def dedupe_pages(pages):
-    seen, out = set(), []
+    """Junta páginas iguais (mesmas runas; a ordem das duas secundárias não importa). A que fica guarda
+    a marca de recomendada e, se uma delas veio da coleta Mestre+, o número de partidas dela."""
+    out, idx = [], {}
     for p in pages:
-        k = tuple(p.get("ids", [])[:6])
-        if k and k not in seen:
-            seen.add(k)
-            out.append(p)
-    return out
+        ids = p.get("ids", [])
+        k = tuple(ids[:4]) + tuple(sorted(ids[4:6]))
+        if len(ids) < 6:
+            continue
+        if k in idx:
+            kept = idx[k]
+            kept["rec"] = bool(kept.get("rec") or p.get("rec"))
+            if p.get("src") == "riot-stats":
+                kept["master"] = {"n": p.get("play", 0), "w": p.get("win", 0)}
+            continue
+        p = dict(p)
+        if p.get("src") == "riot-stats":
+            p["master"] = {"n": p.get("play", 0), "w": p.get("win", 0)}
+        idx[k] = p
+        out.append(p)
+    return sorted(out, key=lambda p: not p.get("rec"))
 
 
 opgg = OPGG()
@@ -736,6 +753,224 @@ icons = Icons()
 
 
 # =====================================================================
+#  DADOS PRÓPRIOS DA API DA RIOT (opcional, com a chave do usuário)
+# =====================================================================
+import riot as RIOT  # noqa: E402
+
+RIOT_KEY_FILE = os.path.join(DATA_DIR, "chave_riot.txt")
+RIOT_DATA_TAG = "dados-riot"                       # release do GitHub com a coleta diária
+
+
+def _repo_slug():
+    m = re.search(r"api\.github\.com/repos/([^/]+/[^/]+)/", UPDATE_URL or "")
+    return m.group(1) if m else ""
+
+
+class RiotService:
+    """Coleta partidas Mestre+ do patch atual enquanto o DraftBot está aberto (se houver chave) e
+    junta com a coleta diária publicada no GitHub (se existir)."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.key = ""
+        try:
+            with open(RIOT_KEY_FILE, encoding="utf-8") as f:
+                self.key = f.read().strip()
+        except OSError:
+            pass
+        self.region = "BR"
+        self.patch = ""
+        self.col = None
+        self.items = None
+        self.status = {"state": "sem chave" if not self.key else "aguardando", "error": ""}
+        self.remote, self.remote_t, self.remote_patch = None, 0, ""
+        self.comb, self.comb_t = None, 0
+        self.stop = threading.Event()
+        self.thread = None
+        self.api_base = os.environ.get("DRAFTBOT_RIOT_API")       # testes
+        self.remote_base = os.environ.get("DRAFTBOT_RIOT_DATA")   # testes
+
+    # ----- chave
+    def set_key(self, key):
+        key = (key or "").strip()
+        if key and not re.fullmatch(r"RGAPI-[0-9a-fA-F-]{20,60}", key):
+            return {"ok": False, "error": "isso não parece uma chave da Riot (começa com RGAPI-)"}
+        if key:
+            try:
+                RIOT.RiotAPI(key, self._region(), base=self.api_base, ua=f"DraftBot/{VERSION}").check()
+            except RIOT.RiotError as e:
+                msg = "a Riot recusou a chave (vencida ou digitada errada)" if e.status in (401, 403) else str(e)
+                return {"ok": False, "error": msg}
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(RIOT_KEY_FILE, "w", encoding="utf-8") as f:
+            f.write(key)
+        self.restart(key)
+        log("Chave da Riot " + ("salva." if key else "removida."))
+        return {"ok": True}
+
+    def _region(self):
+        try:
+            r = lcu.region() if (lcu.base or lcu.connect()) else ""
+        except Exception:
+            r = ""
+        if r and r.upper() in RIOT.REGIONS:
+            self.region = r.upper()
+        return self.region
+
+    def restart(self, key=None):
+        self.stop.set()
+        if self.thread and self.thread.is_alive():
+            self.thread.join(5)
+        with self.lock:
+            if key is not None:
+                self.key = key
+            self.col = None
+            self.stop = threading.Event()
+            self.status = {"state": "sem chave" if not self.key else "aguardando", "error": ""}
+        self.ensure()
+
+    def ensure(self, patch=None):
+        """Liga a coleta quando há chave e o patch é conhecido (vem da OP.GG)."""
+        if patch:
+            self.patch = patch_short(patch)
+        if not self.key or not self.patch or (self.thread and self.thread.is_alive()):
+            return
+        self.thread = threading.Thread(target=self._run, args=(self.stop,), daemon=True)
+        self.thread.start()
+
+    def _run(self, stop):
+        try:
+            region = self._region()
+            api = RIOT.RiotAPI(self.key, region, base=self.api_base, ua=f"DraftBot/{VERSION}")
+            if self.items is None:
+                self.items = RIOT.ItemInfo.fetch(DDRAGON, ua=f"DraftBot/{VERSION}")
+            path = os.path.join(DATA_DIR, f"riot_{region}_{self.patch}.json")
+            remote = self.remote_stats() or {}
+            col = RIOT.Collector(api, self.patch, path, self.items, region, log=log, skip_ids=remote.get("ids"))
+            with self.lock:
+                self.col = col
+                self.status = {"state": "coletando", "error": ""}
+            last_save = time.time()
+            while not stop.is_set():
+                try:
+                    col.step(stop)
+                    self.status["error"] = ""
+                    if col.idle:
+                        stop.wait(60)
+                except InterruptedError:
+                    break
+                except RIOT.RiotError as e:
+                    if e.status in (401, 403):
+                        self.status = {"state": "chave inválida",
+                                       "error": "A chave venceu ou foi recusada. Pegue uma nova em developer.riotgames.com."}
+                        log("Riot: chave recusada; coleta parada.")
+                        break
+                    self.status["error"] = str(e)
+                    stop.wait(30)
+                except Exception as e:
+                    self.status["error"] = str(e)
+                    log("Riot: erro na coleta:", e)
+                    stop.wait(30)
+                if time.time() - last_save > 30:
+                    col.save()
+                    last_save = time.time()
+                    self.comb_t = 0
+                if self.patch and self.patch != col.patch:      # patch novo: recomeça com outro arquivo
+                    break
+            col.save()
+        except Exception as e:
+            self.status = {"state": "erro", "error": str(e)}
+            log("Riot: coleta não iniciou:", e)
+        if self.key and self.patch and not self.stop.is_set() and self.status.get("state") == "coletando":
+            self.thread = None
+            self.ensure()
+
+    # ----- coleta diária publicada no GitHub
+    def remote_stats(self):
+        if not self.patch:
+            return None
+        if self.remote_patch == self.patch and time.time() - self.remote_t < 3 * 3600:
+            return self.remote
+        self.remote_t, self.remote_patch = time.time(), self.patch
+        slug = _repo_slug()
+        base = self.remote_base or (f"https://github.com/{slug}/releases/download/{RIOT_DATA_TAG}" if slug else "")
+        if not base:
+            return None
+        url = f"{base}/riot-{self.region}-{self.patch}.json"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": f"DraftBot/{VERSION}"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            if d.get("patch") == self.patch:
+                self.remote = d
+                self.comb_t = 0
+                log(f"Riot: coleta do GitHub carregada ({d.get('matches', 0)} partidas).")
+        except Exception:
+            self.remote = None
+        return self.remote
+
+    def combined(self):
+        if self.comb is not None and time.time() - self.comb_t < 60:
+            return self.comb
+        remote = self.remote_stats()
+        local = self.col.stats if self.col and self.col.patch == self.patch else None
+        if not local:
+            path = os.path.join(DATA_DIR, f"riot_{self.region}_{self.patch}.json")
+            try:
+                with open(path, encoding="utf-8") as f:
+                    local = json.load(f)
+                if local.get("patch") != self.patch:
+                    local = None
+            except (OSError, ValueError):
+                local = None
+        if not local and not remote:
+            comb = None
+        else:
+            with (self.col.lock if self.col else threading.Lock()):
+                comb = json.loads(json.dumps(local or remote))
+            if local and remote:
+                RIOT.merge(comb, remote)
+        self.comb, self.comb_t = comb, time.time()
+        return comb
+
+    def info(self):
+        c = self.combined() or {}
+        st = dict(self.status)
+        st.update({"hasKey": bool(self.key), "patch": self.patch, "region": self.region,
+                   "matches": c.get("matches", 0),
+                   "local": (self.col.stats.get("matches", 0) if self.col else 0),
+                   "remote": (self.remote or {}).get("matches", 0)})
+        return st
+
+    def name_of(self, display):
+        """Nome do campeão como a Riot usa nas partidas (o id do Data Dragon: Wukong → MonkeyKing)."""
+        if not display:
+            return ""
+        try:
+            m = icons._ddragon()["map"].get(champ_key(display).replace("_", ""))
+            if m:
+                return m
+        except Exception:
+            pass
+        return re.sub(r"[^A-Za-z0-9]", "", display)
+
+    def summary(self, pos, champ, opp="", comp=""):
+        c = self.combined()
+        if not c:
+            return None
+        return RIOT.summary(c, self.name_of(champ), pos, self.name_of(opp) if opp else None,
+                            comp if comp in ("ap", "ad") else None)
+
+
+def patch_short(v):
+    p = str(v or "").split(".")
+    return f"{p[0]}.{p[1]}" if len(p) >= 2 and p[0].isdigit() and p[1].isdigit() else ""
+
+
+riotsvc = RiotService()
+
+
+# =====================================================================
 #  CLIENTE DO LOL (LCU)
 # =====================================================================
 class LCU:
@@ -845,6 +1080,13 @@ class LCU:
         ctx = _LOCAL_SSL if self.base.startswith("https") else None
         with urllib.request.urlopen(r, context=ctx, timeout=4) as resp:
             return resp.read(), resp.headers.get("Content-Type", "")
+
+    def region(self):
+        """Servidor da conta aberta no cliente (BR, NA, EUW…)."""
+        try:
+            return str((self.req("GET", "/riotclient/region-locale") or {}).get("region") or "")
+        except Exception:
+            return ""
 
     RECO_POS = {"top": "TOP", "jungle": "JUNGLE", "mid": "MIDDLE", "adc": "BOTTOM", "support": "UTILITY"}
 
@@ -1167,10 +1409,14 @@ def from_release(d):
             "page": d.get("html_url", "")}
 
 
-def update_info():
+UPDATE_EVERY = 15 * 60       # procura versão nova a cada 15 min (e ao abrir a janela, com force)
+
+
+def update_info(force=False):
     if not UPDATE_URL:
         return None
-    if time.time() - _update["checked"] > 3600:
+    age = time.time() - _update["checked"]
+    if age > UPDATE_EVERY or (force and age > 120):
         _update["checked"] = time.time()
         try:
             req = urllib.request.Request(UPDATE_URL, headers={"User-Agent": f"DraftBot/{VERSION}",
@@ -1510,9 +1756,31 @@ class Handler(BaseHTTPRequestHandler):
                 for r in riot:
                     if len(r["ids"]) == 6 and len(shards) == 3:
                         r["ids"] = r["ids"] + shards
-                b["runes"] = dedupe_pages((b.get("runes") or []) + riot)
+                pages = (b.get("runes") or []) + riot
+                try:
+                    rs = riotsvc.summary(q["pos"], q["champ"], q.get("opp") or "", q.get("comp") or "")
+                except Exception as e:
+                    log("Riot: resumo indisponível:", e)
+                    rs = None
+                if rs:
+                    total = max(1, rs["n"])
+                    mine = [{"primary": p["primary"], "secondary": p["secondary"], "ids": p["ids"],
+                             "names": [lcu.perk_names.get(i, "") for i in p["ids"][:6]],
+                             "play": p["n"], "win": p["w"], "pick": p["n"] / total, "src": "riot-stats",
+                             "adj": p["adj"]} for p in rs["pages"][:3]]
+                    best = max((p for p in mine if p["play"] >= 30), key=lambda p: p["adj"], default=None)
+                    if best and rs["n"] >= 200:      # dados Mestre+ do patch suficientes: a melhor página deles
+                        for p in pages:
+                            p["rec"] = False
+                        best["rec"] = True
+                    pages = pages + mine
+                pages = sorted(pages, key=lambda p: not p.get("rec"))
+                b["runes"] = dedupe_pages(pages)
+                b["riot"] = rs
                 return b
             return self._guard(with_riot_pages)
+        if u.path == "/api/riot":
+            return self._send(200, {"ok": True, "data": riotsvc.info()})
         if u.path == "/api/icon":
             try:
                 data, asset = icons.get(q.get("k", ""), q.get("id", ""))
@@ -1536,7 +1804,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/champs":
             return self._send(200, {"ok": True, "data": lcu.champ_list})
         if u.path == "/api/version":
-            return self._send(200, {"ok": True, "app": "DraftBot", "version": VERSION, "update": update_info(),
+            return self._send(200, {"ok": True, "app": "DraftBot", "version": VERSION, "update": update_info(q.get("force") == "1"),
                                     "autoUpdate": can_self_update(), "updated": update_result()})
         if u.path == "/api/diag":
             return self._send(200, {"ok": True, "data": diagnostics()})
@@ -1564,6 +1832,8 @@ class Handler(BaseHTTPRequestHandler):
             res = lcu.apply_itemset(body)
             log("Itens:", body.get("champ"), "→", "ok" if res["ok"] else res["error"])
             return self._send(200, res)
+        if self.path == "/api/riot":
+            return self._send(200, riotsvc.set_key(str(body.get("key") or "")))
         if self.path == "/api/update":
             info = update_info()
             if not info:

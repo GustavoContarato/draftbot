@@ -1,4 +1,4 @@
-DRAFTBOT 2.7 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.8 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
@@ -86,6 +86,16 @@ SE ALGO DER ERRADO
 - Clique em "Copiar diagnóstico" no rodapé da página e mande para quem te
   passou o DraftBot.
 - "Cliente do LoL não encontrado": confira se o cliente está aberto e logado.
+
+DADOS MESTRE+ (OPCIONAL, API DA RIOT)
+Na coluna Seleção há o campo "Dados Mestre+ (API da Riot)". Com uma chave
+gratuita da Riot o DraftBot junta partidas de jogadores Mestre+ do patch e
+mostra a taxa de vitória de cada runa, builds em ordem e o que funciona contra
+o time inimigo. Como pegar a chave: entre em developer.riotgames.com com a sua
+conta da Riot e copie a "Development API Key" (ela vence a cada 24 h; para não
+precisar renovar, peça lá uma "Personal API Key", que é gratuita). A coleta só
+acontece com o DraftBot aberto e continua de onde parou. A chave fica só no
+seu PC; não a passe para outras pessoas.
 
 NOVAS VERSÕES
 Quando sair uma versão nova, a página do DraftBot mostra um aviso com o botão

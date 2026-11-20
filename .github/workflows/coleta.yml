@@ -1,0 +1,65 @@
+name: Coleta de partidas (API da Riot)
+
+# Junta partidas Mestre+ do patch atual e publica o arquivo de estatísticas na release "dados-riot",
+# que o DraftBot baixa e soma ao que ele mesmo coletou. Só roda se o segredo RIOT_API_KEY existir
+# (Settings → Secrets and variables → Actions). Use a chave pessoal (Personal API Key): a de
+# desenvolvimento vence em 24 h.
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Minutos de coleta"
+        default: "50"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coleta-riot
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      REGION: BR
+    steps:
+      - name: Sem chave, nada a fazer
+        if: ${{ env.RIOT_API_KEY == '' }}
+        run: echo "Crie o segredo RIOT_API_KEY para ligar a coleta diária."
+
+      - uses: actions/checkout@v4
+        if: ${{ env.RIOT_API_KEY != '' }}
+
+      - uses: actions/setup-python@v5
+        if: ${{ env.RIOT_API_KEY != '' }}
+        with:
+          python-version: "3.12"
+
+      - name: Baixar a coleta anterior
+        if: ${{ env.RIOT_API_KEY != '' }}
+        run: |
+          gh release view dados-riot >/dev/null 2>&1 || \
+            gh release create dados-riot --title "Dados da coleta (API da Riot)" --prerelease --latest=false \
+              --notes "Arquivos gerados automaticamente pela coleta diária. Não é uma versão do programa."
+          mkdir -p prev
+          gh release download dados-riot -p "riot-$REGION-*.json" -D prev --clobber || true
+          ls -la prev
+
+      - name: Coletar
+        if: ${{ env.RIOT_API_KEY != '' }}
+        run: |
+          PREV=$(ls -t prev/riot-$REGION-*.json 2>/dev/null | head -1 || true)
+          python tools/collect.py --region "$REGION" --minutes "${{ github.event.inputs.minutes || '50' }}" \
+            --prev "$PREV" | tee coleta.log
+          echo "ARQUIVO=$(grep '^ARQUIVO=' coleta.log | cut -d= -f2)" >> "$GITHUB_ENV"
+
+      - name: Publicar
+        if: ${{ env.RIOT_API_KEY != '' && env.ARQUIVO != '' }}
+        run: gh release upload dados-riot "$ARQUIVO" --clobber
