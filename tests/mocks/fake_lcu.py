@@ -83,6 +83,7 @@ class FakeLCU:
         self.map_id = 11            # 11 = Summoner's Rift, 12 = ARAM
         self.game_id = 777
         self.posts, self.puts, self.deletes = [], [], []
+        self.reco_calls, self.icon_calls = [], []
         self.srv = None
 
     @property
@@ -141,7 +142,8 @@ class FakeLCU:
         if p == "/lol-game-data/assets/v1/items.json":
             return h.j([{"id": i, "name": n} for i, n in ITEMS])
         if p == "/lol-game-data/assets/v1/champion-summary.json":
-            return h.j([{"id": -1, "alias": "None", "name": "Nenhum"}] + [{"id": i, "alias": a, "name": n} for i, a, n in CHAMPS])
+            return h.j([{"id": -1, "alias": "None", "name": "Nenhum"}] + [{"id": i, "alias": a, "name": n,
+                        "squarePortraitPath": f"/lol-game-data/assets/v1/champion-icons/{i}.png"} for i, a, n in CHAMPS])
         if p == "/lol-champ-select/v1/session":
             s = copy.deepcopy(SESSION)
             s["gameId"] = self.game_id
@@ -152,7 +154,27 @@ class FakeLCU:
                 s["actions"] = [[{"actorCellId": 2, "type": "pick", "isInProgress": False, "completed": True, "championId": 134}]]
             return h.j(s)
         if p == "/lol-perks/v1/perks":
-            return h.j([{"id": i} for i in PERKS])
+            return h.j([{"id": i, "name": f"Runa {i}"} for i in PERKS])
+        if p.startswith("/lol-perks/v1/recommended-pages/champion/"):
+            self.reco_calls.append(p)
+            if "/position/UTILITY/" not in p and "/position/BOTTOM/" not in p:
+                return h.j([])
+            return h.j([
+                {"keystone": {"id": 8008, "name": "Ritmo Fatal"}, "primaryPerkStyleId": 8000, "secondaryPerkStyleId": 8400,
+                 "perks": [{"id": i} for i in (8008, 8009, 9104, 8017, 8473, 8451)]},
+                {"keystone": {"id": 8465, "name": "Guardião"}, "primaryPerkStyleId": 8400, "secondaryPerkStyleId": 8300,
+                 "perks": [{"id": i} for i in (8465, 8463, 8473, 8451, 8304, 8345, 5008, 5008, 5001)]}])
+        if p == "/lol-game-data/assets/v1/perks.json":
+            return h.j([{"id": i, "iconPath": f"/lol-game-data/assets/v1/perk-images/Styles/Runa{i}.png"} for i in PERKS])
+        if p.startswith("/lol-game-data/assets/") and p.endswith(".png"):
+            self.icon_calls.append(p)
+            d = b"\x89PNG\r\n\x1a\n" + p.encode()
+            h.send_response(200)
+            h.send_header("Content-Type", "image/png")
+            h.send_header("Content-Length", str(len(d)))
+            h.end_headers()
+            h.wfile.write(d)
+            return
         if p == "/lol-perks/v1/pages":
             return h.j([{"id": 7, "name": "DraftBot · Antiga", "isDeletable": True}, {"id": 8, "name": "Minha página", "isDeletable": True}])
         if p.startswith("/lol-summoner/v1/current-summoner"):

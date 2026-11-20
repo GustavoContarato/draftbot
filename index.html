@@ -72,6 +72,25 @@ input.bad{border-color:#7a2f2a}
 .tag.hot{border-color:var(--red);color:#fff}
 .note{font-size:11.5px;color:var(--mu);margin-top:8px}
 .recs{display:flex;flex-direction:column}
+.ic{width:18px;height:18px;border-radius:4px;object-fit:cover;vertical-align:-4px;margin-right:6px;flex:none;background:#111}
+.ic.c{width:24px;height:24px;border-radius:5px;margin-right:2px;outline:1px solid var(--ln2)}
+.ic.xs{width:15px;height:15px;border-radius:3px;margin-right:2px;vertical-align:-3px}
+.ic.big{width:38px;height:38px;border-radius:7px;outline:1px solid var(--ln2);margin-right:0}
+.ic.r{border-radius:50%;background:transparent}
+.ic.sty{width:14px;height:14px;margin:0 2px 0 0;background:transparent}
+.bh .who{display:flex;gap:11px;align-items:center}
+.slot .si{width:18px;display:inline-flex;justify-content:center}
+.itm{display:inline-flex;align-items:center;white-space:nowrap}
+.ar{color:var(--mu);margin:0 6px}
+.chain{display:flex;flex-wrap:wrap;align-items:center;row-gap:4px}
+.pages{display:flex;flex-direction:column;gap:5px;margin:4px 0 8px}
+.pg{display:flex;align-items:center;gap:8px;border:1px solid var(--ln2);border-radius:7px;padding:6px 8px;cursor:pointer;background:transparent;color:inherit;font:inherit;text-align:left}
+.pg:hover{border-color:#555}
+.pg.on{border-color:var(--red);background:rgba(220,30,30,.06)}
+.pg .pn{font-weight:600;font-size:12.5px}
+.pg .pm{font-size:11px;color:var(--mu)}
+.pg .pr{margin-left:auto;font-size:11.5px;text-align:right;white-space:nowrap}
+.pg .tg{font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--red);border:1px solid var(--red);border-radius:4px;padding:0 4px;margin-left:6px}
 .rec{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--ln)}
 .rec:last-child{border-bottom:0}
 .rk{font-size:12px;color:var(--mu);font-weight:600;text-align:right}
@@ -106,6 +125,8 @@ input.bad{border-color:#7a2f2a}
 .row:last-child{border-bottom:0}
 .row .m{color:var(--mu);font-size:11.5px;white-space:nowrap}
 .row.ks{font-weight:700}
+.row>span:first-child{flex:1;display:flex;align-items:center;flex-wrap:wrap;row-gap:4px}
+.row>span.m{display:inline-flex;align-items:center}
 .row.ks:before{content:"";width:3px;background:var(--red);margin-right:-4px;border-radius:2px}
 .sitem{font-size:12.5px;padding:7px 9px;border:1px solid var(--ln2);border-radius:7px;margin-bottom:5px}
 .sitem b{color:#fff}
@@ -190,7 +211,7 @@ body.compact #fullLink{display:inline}
 <div id="build" class="build"></div>
 
 <footer>
-  <b>Chance estimada:</b> parte da taxa de vitória real do campeão na rota no patch atual (puxada para 50% quando há poucas partidas) e ajusta pelo confronto contra o seu oponente de rota, pelo risco de ser counterado quando você escolhe às cegas, pela sinergia medida com cada aliado e pela composição dos dois times. A coluna <b>Recomendações</b> é igual para qualquer conta: só depende do patch e desta seleção (campeões que você não tem aparecem marcados, não escondidos). A coluna <b>Seu pool</b> soma a isso a sua experiência e o seu desempenho em ranqueadas com cada campeão (solo/duo, flex e Clash). É uma estimativa para comparar opções, não uma previsão exata.
+  <b>Chance estimada:</b> parte da taxa de vitória real do campeão na rota no patch atual (puxada para 50% quando há poucas partidas) e ajusta pelo confronto contra o seu oponente de rota, pelo risco de ser counterado quando você escolhe às cegas, pela sinergia medida com cada aliado e pela composição dos dois times. A coluna <b>Recomendações</b> é igual para qualquer conta: só depende do patch e desta seleção (campeões que você não tem aparecem marcados, não escondidos). A coluna <b>Seu pool</b> mostra a mesma chance, só para os campeões que você joga, com o seu histórico em ranqueadas (solo/duo, flex e Clash) ao lado. É uma estimativa para comparar opções, não uma previsão exata.
   Estatísticas de partidas ranqueadas da <a href="https://op.gg" target="_blank" rel="noopener">OP.GG</a>, atualizadas diariamente.
   <div class="foot"><span id="verTxt">DraftBot</span><button class="btn" id="diagBtn" style="display:none">Copiar diagnóstico</button><span class="msg" id="diagMsg"></span></div>
   <div id="diagBox"></div>
@@ -402,7 +423,7 @@ if(!st.pins) st.pins={};
 const save=()=>{try{localStorage.setItem("draftbot21",JSON.stringify(st));}catch(e){}};
 const LIVE=["127.0.0.1","localhost"].includes(location.hostname);
 const D={acct:null,acctPuuid:"",acctLoading:false,acctErr:"",meta:null,version:"",tables:{},syn:{},builds:{},items:{},pending:{},err:{},pickable:null,offMode:"",sentKey:""};
-let previewChamp=null, runeAlt=0, liveD=null;
+let previewChamp=null, runeAlt=0, liveD=null, lastBuildKey="";
 let autoSend=false; try{autoSend=localStorage.getItem("draftbotAutoSend")==="1";}catch(e){}
 
 /* ===================== 3. Dados (programa local → cliente e OP.GG) ===================== */
@@ -438,7 +459,7 @@ function renderSlots(){
   ["ally","enemy"].forEach(side=>{
     document.getElementById(side+"Slots").innerHTML=ROLES.map(([k,l])=>{
       const me=side==="ally"&&k===st.role, v=st[side][k]||"", pinned=side==="enemy"&&v&&st.pins[v]===k;
-      return `<div class="slot ${me?"me":""}"><label>${me?"Você":l}</label><input type="text" list="champList" data-side="${side}" data-k="${k}" value="${v}" placeholder="${me?l:"—"}">${side==="enemy"?`<span class="pin" data-unpin="${v}" title="${pinned?"Rota fixada por você (clique para soltar)":""}">${pinned?"●":""}</span>`:""}</div>`;}).join("");
+      return `<div class="slot ${me?"me":""}"><label>${me?"Você":l}</label><span class="si">${ICON("champ",resolve(v)||"","xs")}</span><input type="text" list="champList" data-side="${side}" data-k="${k}" value="${v}" placeholder="${me?l:"—"}">${side==="enemy"?`<span class="pin" data-unpin="${v}" title="${pinned?"Rota fixada por você (clique para soltar)":""}">${pinned?"●":""}</span>`:""}</div>`;}).join("");
   });
   document.querySelectorAll(".slot input").forEach(inp=>{
     const mark=()=>inp.classList.toggle("bad",!!inp.value&&!resolve(inp.value)); mark();
@@ -457,7 +478,7 @@ function renderSlots(){
   document.getElementById("pinNote").textContent=LIVE?"As rotas dos inimigos são deduzidas. Se alguma estiver errada, digite o campeão na rota certa: ela fica fixada (●).":"";
 }
 function renderBans(){
-  document.getElementById("banChips").innerHTML=st.bans.map((b,i)=>`<span class="chip">${b}<b data-i="${i}">×</b></span>`).join("")||`<span class="note" style="margin:0">Nenhum ban.</span>`;
+  document.getElementById("banChips").innerHTML=st.bans.map((b,i)=>`<span class="chip">${ICON("champ",b,"xs")}${b}<b data-i="${i}">×</b></span>`).join("")||`<span class="note" style="margin:0">Nenhum ban.</span>`;
   document.querySelectorAll("#banChips b").forEach(x=>x.onclick=()=>{st.bans.splice(+x.dataset.i,1);save();renderBans();update();});
 }
 const banIn=document.getElementById("banInput");
@@ -633,12 +654,13 @@ function rankRole(role){
   return candidates(role).map(n=>chanceOf(role,n)).sort((a,b)=>b.p-a.p);
 }
 const chanceCell=(p,label)=>`<div class="chance">${pct(p)}<small>${label||"chance"}</small></div>`;
+const ICON=(k,id,cls="")=>LIVE&&id!=null&&id!==""?`<img class="ic ${cls}" src="/api/icon?k=${k}&id=${encodeURIComponent(id)}" alt="" loading="lazy" onerror="this.remove()">`:"";
 function recRow(x,i,role,opts){
   const e=metaEntry(role,x.n), mine=resolve(st.ally[role])||previewChamp;
   const tags=(e?`<span class="tier ${e.tier===1?"t1":""}">T${e.tier}</span>`:"")+(mine===x.n?`<span class="tier t1">ESCOLHIDO</span>`:"")+(opts.extraTag||"");
   const chips=x.R.filter(r=>r[0]!=="z"||r[1].startsWith("Tier")||r[1].endsWith("…")||r[1].includes(" contra ")).slice(0,opts.max||5);
   return `<div class="rec ${i===0&&!opts.off?"top":""} ${opts.off?"off":""}"><div class="rk">${opts.off?"–":i+1}</div>
-    <div><div class="rn">${x.n}${tags}</div>${opts.personal||""}
+    <div><div class="rn">${ICON("champ",x.n,"c")}${x.n}${tags}</div>${opts.personal||""}
     ${opts.off?"":`<div class="why">${chips.map(r=>`<span class="${r[0]}">${r[1]}</span>`).join("")}</div>`}</div>
     <div class="sc">${opts.off?"":chanceCell(x.p)+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
 }
@@ -756,26 +778,33 @@ function renderBuild(){
   if(b===undefined){ el.innerHTML=`<div class="card"><div class="empty">Buscando runas e build de ${n}${opp?" contra "+opp:""} no patch atual…</div></div>`; return; }
   if(b===null){ el.innerHTML=`<div class="card"><div class="empty">Não consegui as estatísticas de ${n} agora (${D.err["builds|"+[role,n,opp].join("|")]||"sem conexão"}).</div></div>`; return; }
   const sit=situational(n), c=chanceOf(role,n), cp=D.acct?chanceOf(role,n,true):null, e=metaEntry(role,n);
+  const bkey=[role,n,opp].join("|"); if(bkey!==lastBuildKey){lastBuildKey=bkey; runeAlt=0;}
   const rp=b.runes[Math.min(runeAlt,b.runes.length-1)];
   const advTxt=!b.advantage?"":b.advantage==="EVEN"?"Rota equilibrada":(resolve(b.advantage)===n?"Você leva vantagem na rota":`${b.advantage} leva vantagem na rota`);
   const styleTxt={defensive:"jogue defensivo",aggressive:"jogue agressivo",even:"troque com cuidado"}[b.style]||"";
   const vs=b.vs&&b.vs.play?{wr:b.vs.win/b.vs.play,p:b.vs.play}:null;
   const src=b.source==="matchup"?`neste confronto`:b.source==="mixed"?"gerais (confronto raro)":"mais usadas";
-  const it=g=>g&&g.ids.length?g.ids.map((id,i)=>g.names[i]&&isNaN(g.names[i])?g.names[i]:itemName(id)).join(" → "):"—";
-  const runeRows=rp?rp.names.map((nm,i)=>`<div class="row ${i===0?"ks":""}"><span>${nm}</span>${i===4?`<span class="m">${STYLE[rp.secondary]||""}</span>`:i===0?`<span class="m">${STYLE[rp.primary]||""}</span>`:""}</div>`).join("")+`<div class="row"><span>${rp.ids.slice(6).map(s=>SHARD[s]||s).join(" · ")}</span></div>`:"<div class='note'>Sem dados de runas.</div>";
-  const spells=b.spells[0]?b.spells[0].ids.map(i=>SPELL[i]||i).join(" + "):"—";
+  const iname=(g,id,i)=>g.names&&g.names[i]&&isNaN(g.names[i])?g.names[i]:itemName(id);
+  const it=g=>g&&g.ids.length?`<span class="chain">${g.ids.map((id,i)=>`<span class="itm">${ICON("item",id)}${iname(g,id,i)}</span>`).join('<span class="ar">›</span>')}</span>`:"—";
+  const sty=id=>id?`${ICON("style",id,"sty")}${STYLE[id]||""}`:"";
+  const runeRows=rp?rp.names.map((nm,i)=>`<div class="row ${i===0?"ks":""}"><span>${ICON("perk",rp.ids[i],"r")}${nm}</span>${i===4?`<span class="m">${sty(rp.secondary)}</span>`:i===0?`<span class="m">${sty(rp.primary)}</span>`:""}</div>`).join("")+`<div class="row"><span class="chain">${rp.ids.slice(6).map(s=>`<span class="itm">${ICON("perk",s,"r xs")}${SHARD[s]||s}</span>`).join('<span class="ar">·</span>')}</span></div>`:"<div class='note'>Sem dados de runas.</div>";
+  const pageLabel=p=>p.src==="matchup"?`Contra ${opp}`:p.src==="general"?"Mais usada no geral":"Sugestão do cliente (Riot)";
+  const pageStat=p=>p.play?`${pct(p.win/p.play)} · ${kfmt(p.play)} jogos`:"sem estatística";
+  const pagesHtml=b.runes.length>1?`<div class="pages">${b.runes.map((p,i)=>`<button class="pg ${p===rp?"on":""}" data-page="${i}">${ICON("perk",p.ids[0],"r")}${ICON("style",p.secondary,"sty")}
+      <span><span class="pn">${p.names[0]||p.label||"Página"}</span>${p.rec?'<span class="tg">RECOMENDADA</span>':""}<br><span class="pm">${pageLabel(p)} · ${STYLE[p.primary]||""} + ${STYLE[p.secondary]||""}</span></span>
+      <span class="pr">${pageStat(p)}</span></button>`).join("")}</div>`:"";
+  const spells=b.spells[0]?`<span class="chain">${b.spells[0].ids.map(i=>`<span class="itm">${ICON("spell",i)}${SPELL[i]||i}</span>`).join('<span class="ar">+</span>')}</span>`:"—";
   const vsRare=vs&&vs.p<300;
   el.innerHTML=`<div class="card">
-   <div class="bh"><div><div class="lbl">${RLABEL[role]}${opp?" · contra "+opp:" · sem oponente definido"}</div><div class="t">${n}</div></div>
+   <div class="bh"><div class="who">${ICON("champ",n,"big")}<div><div class="lbl">${RLABEL[role]}${opp?" · contra "+opp:" · sem oponente definido"}</div><div class="t">${n}</div></div></div>
      <div class="kpis"><div class="kpi"><div class="lbl">Chance geral</div><div class="v red">${pct(c.p)}</div></div>${cp?`<div class="kpi"><div class="lbl">Para você</div><div class="v">${pct(cp.p)}</div></div>`:""}
      ${e?`<div class="kpi"><div class="lbl">Tier</div><div class="v">T${e.tier}</div></div>`:""}
      ${vs?`<div class="kpi"><div class="lbl">vs ${opp}</div><div class="v">${pct(vs.wr)}</div></div>`:""}
-     ${rp?`<div class="kpi"><div class="lbl">Runas</div><div class="v">${pct(rp.win/(rp.play||1))}</div></div>`:""}</div></div>
+     ${rp&&rp.play?`<div class="kpi"><div class="lbl">Runas</div><div class="v">${pct(rp.win/rp.play)}</div></div>`:""}</div></div>
    ${b.note||vsRare?`<div class="warn">${[vsRare?`Confronto raro: só ${vs.p} partidas de ${n} contra ${opp}, então os números variam bastante.`:"",b.note].filter(Boolean).join(" ")}</div>`:""}
    ${b.tip||advTxt?`<div class="tip">${advTxt?`<b>${advTxt}</b>${styleTxt?", "+styleTxt:""}. `:""}${b.tip||""}</div>`:""}
    <div class="cols">
-    <div class="box"><div class="sub">Runas ${src} ${rp?`· ${pct(rp.pick)} usam · ${kfmt(rp.play)} jogos`:""}</div>${runeRows}
-      ${b.runes.length>1?`<div class="note"><span class="alt" id="altRune">Ver página alternativa (${runeAlt+1}/${b.runes.length})</span></div>`:""}
+    <div class="box"><div class="sub">Runas ${b.runes.length>1?`· ${b.runes.length} opções`:src+(rp&&rp.play?` · ${pct(rp.pick)} usam · ${kfmt(rp.play)} jogos`:"")}</div>${pagesHtml}${runeRows}
       <div class="sub">Feitiços</div><div class="row"><span>${spells}</span></div>
       <div class="skillbox"><div class="sub">Habilidades ${b.priority.length?"· prioridade "+b.priority.join(" › "):""}</div>${skillGrid(b.order)||"<div class='note'>—</div>"}</div>
       <div class="acts"><button class="btn pri" id="sendRunes" ${rp&&rp.ids.length===9?"":"disabled"}>Enviar runas</button><span class="msg" id="runeMsg"></span></div>
@@ -784,12 +813,12 @@ function renderBuild(){
       <div class="sub">Núcleo ${b.core[0]?`· ${pct(b.core[0].win/(b.core[0].play||1))} vitória · ${kfmt(b.core[0].play)} jogos`:""}</div><div class="row ks"><span>${it(b.core[0])}</span></div>
       ${b.core.slice(1,3).map(x=>`<div class="row"><span>${it(x)}</span><span class="m">${pct(x.pick)}</span></div>`).join("")}
       <div class="sub">Botas</div><div class="row"><span>${sit.boots?`<b>${itemName(sit.boots.id)}</b>`:it(b.boots[0])}</span>${sit.boots?`<span class="m">${sit.boots.why}</span>`:""}</div>
-      ${sit.list.length?`<div class="sub" style="color:var(--red)">Situacionais deste jogo</div>${sit.list.map(s=>`<div class="sitem"><b>${itemName(s.id)}</b> <span>· ${s.why}</span></div>`).join("")}`:""}
+      ${sit.list.length?`<div class="sub" style="color:var(--red)">Situacionais deste jogo</div>${sit.list.map(s=>`<div class="sitem">${ICON("item",s.id)}<b>${itemName(s.id)}</b> <span>· ${s.why}</span></div>`).join("")}`:""}
       <div class="late"><div class="sub">Itens finais populares</div>${b.late.slice(0,6).map(l=>`<div class="row"><span>${it(l)}</span><span class="m">${pct(l.pick)}</span></div>`).join("")||"—"}</div>
       <div class="acts"><button class="btn" id="sendItems">Enviar build para a loja</button><span class="msg" id="itemMsg"></span></div>
     </div>
    </div></div>`;
-  const alt=document.getElementById("altRune"); if(alt) alt.onclick=()=>{runeAlt=(runeAlt+1)%b.runes.length;renderBuild();};
+  document.querySelectorAll("#build [data-page]").forEach(x=>x.onclick=()=>{runeAlt=+x.dataset.page;renderBuild();});
   const sr=document.getElementById("sendRunes"); if(sr) sr.onclick=()=>sendRunes(n,rp,document.getElementById("runeMsg"));
   document.getElementById("sendItems").onclick=()=>sendItems(itemsetBody(n,b,sit),document.getElementById("itemMsg"));
   // envio automático ao travar

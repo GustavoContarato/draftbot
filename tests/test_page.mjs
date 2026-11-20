@@ -41,6 +41,7 @@ globalThis.fetch = async (url) => {
     return t ? ok({ champ: q.champ, pos: q.pos, rows: t.rows }) : fail("sem dados");
   }
   if (u.pathname === "/api/synergy") return ok([]);
+  if (u.pathname === "/api/build" && S.build) return ok(S.build);
   return fail("não simulado: " + u.pathname);
 };
 
@@ -202,6 +203,26 @@ await test("patch recém-saído: sem falso 'Seguro às cegas' e com aviso de pou
   assert(x.R.some(r => r[1].startsWith("Poucas partidas de confronto")), JSON.stringify(x.R));
   S.meta = META; delete __T.D.tables["adc|Xayah"]; await __T.loadMeta();
   assert(!strip(els.banner.innerHTML).includes("poucas partidas"));
+});
+
+await test("build: várias páginas de runas, a recomendada primeiro, e ícones do jogo", async () => {
+  const pg = (src, ids, extra = {}) => Object.assign({ src, primary: 8000, secondary: 8400, ids, names: ids.slice(0, 6).map(i => "R" + i),
+    play: src === "riot" ? 0 : 3000, win: 1600, pick: 0.4 }, extra);
+  S.build = { champ: "Jinx", pos: "adc", opp: "", vs: null, tip: "", advantage: "", style: "", source: "general", note: "",
+    runes: [pg("general", [8008, 9111, 9104, 8014, 8473, 8451, 5005, 5008, 5011], { rec: true }),
+            pg("riot", [8021, 9111, 9104, 8014, 8473, 8451, 5005, 5008, 5011], { label: "Agilidade" }),
+            pg("riot", [8005, 9111, 9104, 8014, 8473, 8451, 5005, 5008, 5011], { label: "Pressione" })],
+    starter: [{ ids: [1055, 2003], names: [], play: 1, win: 1 }], core: [{ ids: [3031, 3036], names: [], play: 900, win: 500 }],
+    boots: [], spells: [{ ids: [4, 7] }], late: [], order: [], priority: [] };
+  draft("adc", {}, { adc: "Jinx" }); await settle();
+  const h = els.build.innerHTML;
+  assert((h.match(/data-page="/g) || []).length === 3, "3 opções de runas");
+  assert((h.match(/RECOMENDADA/g) || []).length === 1 && h.indexOf("RECOMENDADA") < h.indexOf('data-page="1"'), "recomendada é a primeira");
+  assert(h.includes("Sugestão do cliente (Riot)") && h.includes("sem estatística"));
+  for (const k of ["champ&id=Jinx", "perk&id=8008", "style&id=8400", "item&id=3031", "spell&id=4"])
+    assert(h.includes("/api/icon?k=" + k), "ícone " + k);
+  assert(strip(els.recs.innerHTML).length && els.recs.innerHTML.includes("/api/icon?k=champ"), "ícones nas recomendações");
+  S.build = null;
 });
 
 console.log(`\n${passed} ok, ${failed} falharam`);

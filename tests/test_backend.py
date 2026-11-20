@@ -474,6 +474,54 @@ class Atualizacao(unittest.TestCase):
         self.assertEqual(st, 403)
 
 
+class RunasEIcones(unittest.TestCase):
+    """Várias páginas de runas (OP.GG + sugestões do cliente) e ícones do jogo."""
+
+    def test_opcoes_de_runas(self):
+        LCU.account, LCU.phase = "A", "ChampSelect"
+        st, r = api("/api/build?pos=support&champ=Lulu&opp=Leona")
+        self.assertTrue(r["ok"], r)
+        pages = r["data"]["runes"]
+        self.assertTrue(pages[0].get("rec"), "a recomendada vem primeiro")
+        self.assertEqual(sum(1 for p in pages if p.get("rec")), 1)
+        riot = [p for p in pages if p["src"] == "riot"]
+        self.assertEqual(len(riot), 2, pages)
+        self.assertTrue(all(len(p["ids"]) == 9 for p in pages), "toda página completa (com fragmentos)")
+        self.assertEqual(riot[0]["label"], "Ritmo Fatal")
+        self.assertEqual(riot[0]["names"][0], "Runa 8008")
+        self.assertEqual(len({tuple(p["ids"][:6]) for p in pages}), len(pages), "sem páginas repetidas")
+        self.assertTrue(any("/position/UTILITY/" in c for c in LCU.reco_calls))
+
+    def test_sem_cliente_so_opgg(self):
+        old = os.environ.pop("DRAFTBOT_LCU")
+        base = DB.lcu.base
+        try:
+            DB.lcu.base = None
+            DB.lcu._next_try = 0
+            pages = DB.opgg.build("support", "Lulu", "")["runes"]
+            self.assertEqual(len(pages), 1)
+            self.assertTrue(pages[0]["rec"])
+        finally:
+            os.environ["DRAFTBOT_LCU"] = old
+            DB.lcu.base = base
+
+    def test_icones(self):
+        import urllib.request
+        DB.icons.meta.clear()
+        base = f"http://127.0.0.1:{SRV.server_address[1]}"
+        for k, i in (("champ", "Kog'Maw"), ("champ", "96"), ("perk", "8008")):
+            with urllib.request.urlopen(f"{base}/api/icon?k={k}&id={urllib.parse.quote(i)}", timeout=5) as r:
+                self.assertEqual(r.headers["Content-Type"], "image/png")
+                self.assertTrue(r.read().startswith(b"\x89PNG"))
+        n = len(LCU.icon_calls)
+        urllib.request.urlopen(f"{base}/api/icon?k=perk&id=8008", timeout=5).read()
+        self.assertEqual(len(LCU.icon_calls), n, "segunda vez vem do disco")
+        with self.assertRaises(urllib.error.HTTPError):
+            urllib.request.urlopen(f"{base}/api/icon?k=perk&id=1", timeout=5)
+        with self.assertRaises(urllib.error.HTTPError):
+            urllib.request.urlopen(f"{base}/api/icon?k=../../x&id=1", timeout=5)
+
+
 class AvisoDoGitHub(unittest.TestCase):
     """Versão nova lida direto da última release do GitHub (com a impressão digital do .zip)."""
 

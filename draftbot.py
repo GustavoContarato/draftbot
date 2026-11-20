@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.6.2"
+VERSION = "2.7.0"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -570,11 +570,114 @@ class OPGG:
         if core_n and core_n < 50:
             out["note"] = (out["note"] + " " if out["note"] else "") + \
                 f"Poucos jogos de {champ} nesta rota: a build tem amostra pequena ({core_n} partidas)."
+        # páginas de runas: a escolhida (recomendada) primeiro; a outra fonte da OP.GG vira alternativa
+        chosen = [dict(r, src="matchup" if out["source"] == "matchup" else "general", rec=True) for r in b["runes"][:1]]
+        others = []
+        if opp:
+            gen = runes_of(self.general(pos, champ) or {}) if chosen and chosen[0]["src"] == "matchup" else []
+            mu = runes_of(d) if chosen and chosen[0]["src"] == "general" else []
+            others = [dict(r, src="general") for r in gen[:1]] + [dict(r, src="matchup") for r in mu[:1] if r.get("play")]
+        b["runes"] = dedupe_pages(chosen + others)
         out.update(b)
         return out
 
 
+def dedupe_pages(pages):
+    seen, out = set(), []
+    for p in pages:
+        k = tuple(p.get("ids", [])[:6])
+        if k and k not in seen:
+            seen.add(k)
+            out.append(p)
+    return out
+
+
 opgg = OPGG()
+
+
+# =====================================================================
+#  ÍCONES (do cliente do LoL; com ele fechado, da CommunityDragon)
+# =====================================================================
+CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/"
+ICON_DIR = os.path.join(DATA_DIR, "icones")
+
+
+class Icons:
+    META = {"champ": "v1/champion-summary.json", "perk": "v1/perks.json", "style": "v1/perkstyles.json",
+            "item": "v1/items.json", "spell": "v1/summoner-spells.json"}
+
+    def __init__(self):
+        self.meta = {}
+        self.lock = threading.Lock()
+
+    def _get(self, asset):
+        """asset = caminho depois de /lol-game-data/assets/. Tenta o cliente, depois a CommunityDragon."""
+        if lcu.base or lcu.connect():
+            try:
+                return lcu.req_raw("/lol-game-data/assets/" + asset)[0]
+            except Exception:
+                pass
+        req = urllib.request.Request(CDRAGON + asset.lower(), headers={"User-Agent": f"DraftBot/{VERSION}"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.read()
+
+    def _meta(self, kind):
+        with self.lock:
+            if kind in self.meta:
+                return self.meta[kind]
+        os.makedirs(ICON_DIR, exist_ok=True)
+        f = os.path.join(ICON_DIR, kind + ".json")
+        data = None
+        try:
+            if time.time() - os.path.getmtime(f) < 3 * 86400:
+                with open(f, encoding="utf-8") as h:
+                    data = json.load(h)
+        except (OSError, ValueError):
+            pass
+        if data is None:
+            data = json.loads(self._get(self.META[kind]).decode("utf-8"))
+            with open(f, "w", encoding="utf-8") as h:
+                json.dump(data, h)
+        if kind == "style" and isinstance(data, dict):
+            data = data.get("styles") or []
+        idx = {}
+        for e in data if isinstance(data, list) else []:
+            if not isinstance(e, dict) or "id" not in e:
+                continue
+            idx[str(e["id"])] = e.get("squarePortraitPath") or e.get("iconPath") or ""
+            if kind == "champ":
+                for nm in (e.get("alias"), e.get("name")):
+                    if nm:
+                        idx[champ_key(nm).replace("_", "")] = e.get("squarePortraitPath") or ""
+        with self.lock:
+            self.meta[kind] = idx
+        return idx
+
+    def get(self, kind, ident):
+        if kind not in self.META:
+            raise ValueError("tipo de ícone inválido")
+        key = str(ident) if kind != "champ" or str(ident).isdigit() else champ_key(ident).replace("_", "")
+        path = self._meta(kind).get(key) or ""
+        if kind == "champ" and not path and str(ident).isdigit():
+            path = f"/lol-game-data/assets/v1/champion-icons/{ident}.png"
+        marker = "/lol-game-data/assets/"
+        if marker not in path:
+            raise LookupError("ícone não encontrado")
+        asset = path.split(marker, 1)[1]
+        f = os.path.join(ICON_DIR, hashlib.sha1(asset.lower().encode()).hexdigest() + os.path.splitext(asset)[1].lower())
+        try:
+            with open(f, "rb") as h:
+                return h.read(), asset
+        except OSError:
+            pass
+        data = self._get(asset)
+        with open(f + ".tmp", "wb") as h:
+            h.write(data)
+        os.replace(f + ".tmp", f)
+        return data, asset
+
+
+icons = Icons()
 
 
 # =====================================================================
@@ -591,6 +694,7 @@ class LCU:
         self.champ_list = []      # [{id, alias, name}] para a página
         self.items = {}
         self.perks = None
+        self.perk_names = {}
         self._acct, self._acct_t = None, 0
         self._who, self._who_t = None, 0
         self._next_try = 0
@@ -665,7 +769,9 @@ class LCU:
         except Exception:
             self.items = {}
         try:
-            self.perks = {p["id"] for p in self.req("GET", "/lol-perks/v1/perks")}
+            pl = self.req("GET", "/lol-perks/v1/perks") or []
+            self.perks = {p["id"] for p in pl}
+            self.perk_names = {p["id"]: p.get("name", "") for p in pl}
         except Exception:
             self.perks = None
 
@@ -678,6 +784,46 @@ class LCU:
         with urllib.request.urlopen(r, context=ctx, timeout=4) as resp:
             raw = resp.read()
             return json.loads(raw) if raw else None
+
+    def req_raw(self, path):
+        r = urllib.request.Request(self.base + path, headers={"Authorization": self.auth})
+        ctx = _LOCAL_SSL if self.base.startswith("https") else None
+        with urllib.request.urlopen(r, context=ctx, timeout=4) as resp:
+            return resp.read(), resp.headers.get("Content-Type", "")
+
+    RECO_POS = {"top": "TOP", "jungle": "JUNGLE", "mid": "MIDDLE", "adc": "BOTTOM", "support": "UTILITY"}
+
+    def recommended_pages(self, champ, pos):
+        """Páginas de runas que o próprio cliente do LoL sugere para o campeão/rota (as da Riot)."""
+        with self.lock:
+            if not self.base and not self.connect():
+                return []
+            cid = self.champ_id(champ)
+            if not cid:
+                return []
+            p = self.RECO_POS.get(pos, "NONE")
+            raw = None
+            for cand in (p, p.lower(), "NONE"):
+                try:
+                    raw = self.req("GET", f"/lol-perks/v1/recommended-pages/champion/{cid}/position/{cand}/map/11")
+                    if raw:
+                        break
+                except Exception:
+                    continue
+        out = []
+        for r in raw or []:
+            if not isinstance(r, dict):
+                continue
+            ids = [int(x.get("id") if isinstance(x, dict) else x) for x in (r.get("perks") or [])
+                   if (x.get("id") if isinstance(x, dict) else x)]
+            if len(ids) < 6:
+                continue
+            ks = r.get("keystone") or {}
+            out.append({"primary": r.get("primaryPerkStyleId"), "secondary": r.get("secondaryPerkStyleId"),
+                        "ids": ids[:9], "names": [self.perk_names.get(i, "") for i in ids[:6]],
+                        "play": 0, "win": 0, "pick": 0, "src": "riot",
+                        "label": (ks.get("name") if isinstance(ks, dict) else "") or self.perk_names.get(ids[0], "")})
+        return out[:4]
 
     def name(self, cid):
         return self.champs.get(cid, "") if cid else ""
@@ -1298,7 +1444,36 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/synergy":
             return self._guard(lambda: opgg.synergy(q["champ"], q["pos"], q["target"]))
         if u.path == "/api/build":
-            return self._guard(lambda: opgg.build(q["pos"], q["champ"], q.get("opp") or ""))
+            def with_riot_pages():
+                b = opgg.build(q["pos"], q["champ"], q.get("opp") or "")
+                try:
+                    riot = lcu.recommended_pages(q["champ"], q["pos"])
+                except Exception as e:
+                    log("Aviso: páginas sugeridas pelo cliente indisponíveis:", e)
+                    riot = []
+                shards = next((r["ids"][6:9] for r in b.get("runes") or [] if len(r.get("ids", [])) == 9), [])
+                for r in riot:
+                    if len(r["ids"]) == 6 and len(shards) == 3:
+                        r["ids"] = r["ids"] + shards
+                b["runes"] = dedupe_pages((b.get("runes") or []) + riot)
+                return b
+            return self._guard(with_riot_pages)
+        if u.path == "/api/icon":
+            try:
+                data, asset = icons.get(q.get("k", ""), q.get("id", ""))
+            except Exception:
+                return self._send(404, b"", "image/png")
+            ext = os.path.splitext(asset)[1].lower()
+            ctype = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+                     ".svg": "image/svg+xml"}.get(ext, "application/octet-stream")
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "max-age=604800")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if u.path == "/api/account":
             return self._guard(lambda: lcu.account(refresh=q.get("refresh") == "1"))
         if u.path == "/api/items":

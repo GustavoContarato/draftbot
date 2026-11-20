@@ -1,5 +1,9 @@
 # Mudanças
 
+## v2.7.0
+- Ícones do jogo (pequenos): campeões nas recomendações, no pool, na seleção e nos bans; runas, feitiços e itens na build. Vêm do próprio cliente do LoL; com ele fechado, da CommunityDragon. Ficam guardados no PC.
+- Mais opções de runas: além da página recomendada (a do confronto ou a mais usada), aparecem a outra página da OP.GG e as páginas que o próprio cliente do LoL sugere para o campeão e a rota. A recomendada vem primeiro e marcada; clique em outra para ver e enviar.
+
 ## v2.6.2
 - "Seu pool" agora mostra exatamente a mesma chance da coluna Recomendações, só que filtrada para os campeões que você joga (com seus jogos, KDA e maestria ao lado, sem mexer na porcentagem).
 

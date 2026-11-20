@@ -1,4 +1,4 @@
-DRAFTBOT 2.6 — assistente de seleção de campeões (todas as rotas)
+DRAFTBOT 2.7 — assistente de seleção de campeões (todas as rotas)
 =================================================================
 
 INSTALAÇÃO (uma vez)
@@ -65,6 +65,10 @@ campeão e avisa. Os itens situacionais respondem ao time inimigo deste jogo.
 - "Enviar runas": cria e ativa a página "DraftBot · <campeão>".
 - "Enviar build para a loja": cria o conjunto de itens "DraftBot".
 - "enviar ao travar" (no topo): faz os dois sozinho quando você trava o pick.
+Há várias opções de runas: a RECOMENDADA vem primeiro (a do confronto, se houver
+partidas suficientes, ou a mais usada no geral); as outras são a outra página
+da OP.GG e as sugestões do próprio cliente do LoL. Clique em uma para ver e
+enviar.
 
 JANELA COMPACTA
 O botão "Janela compacta" abre uma janela estreita só com o essencial, para
