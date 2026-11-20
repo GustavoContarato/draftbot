@@ -1,5 +1,9 @@
 # Mudanças
 
+## v2.6.1
+- Corrigido: no "Seu pool", 1 ou 2 vitórias com um campeão davam um bônus grande demais (ex.: Nautilus com 1 jogo passava o 1º recomendado). Agora o seu resultado só pesa de verdade com dezenas de partidas.
+- No "Seu pool", a chance mostra "para você" e, embaixo, a chance geral (a mesma da coluna do meio), para comparar.
+
 ## v2.6.0
 - As versões novas agora vêm direto das releases do GitHub (com a impressão digital do .zip que o próprio GitHub calcula). Não é mais preciso Google Drive nem editar o aviso à mão: publicou a release, todo mundo recebe o "Atualizar agora".
 

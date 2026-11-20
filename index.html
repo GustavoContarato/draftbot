@@ -115,6 +115,7 @@ input.bad{border-color:#7a2f2a}
 .alt{font-size:11.5px;color:var(--mu);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 footer{color:var(--mu);font-size:11.5px;margin-top:22px;line-height:1.7;border-top:1px solid var(--ln);padding-top:14px}
 footer a{color:#ddd}
+.geral{font-size:10px;color:#888;margin:-2px 0 4px;text-align:right}
 .banner.note{border-left-color:#777}
 .banner{border:1px solid var(--ln2);border-left:2px solid var(--red);padding:10px 12px;border-radius:8px;font-size:12.5px;color:#ccc;margin-bottom:14px}
 .chance{font-size:20px;font-weight:700;line-height:1}
@@ -607,17 +608,20 @@ function chanceOf(role,n,personal){
   }
   if(x.novo) R.push(["z","Campeão novo: sem regras de composição"]);
   // sua experiência com ele (com a conta lida)
-  const me=personal?personalOf(role,n):null;
+  const me=personal?personalOf(role,n):null, pGeral=clamp(p,0.3,0.7);
   if(me){
+    // Poucos jogos dizem pouco: o seu resultado só pesa de verdade com dezenas de partidas
+    // (com 1 vitória, quase nada; com 30 jogos a 67%, uns +3 pontos).
     const fam=-0.015+0.025*Math.min(1,Math.log(1+me.g)/Math.log(31))+(me.g===0&&me.m&&me.m.points>=100000?0.008:0);
-    let perf=0; if(me.g){ const pw=(me.w+p*10)/(me.g+10); perf=clamp((pw-p)*0.5,-0.04,0.04); }
+    let perf=0; if(me.g){ const pw=(me.w+p*PERS_K)/(me.g+PERS_K); perf=clamp((pw-p)*0.5,-0.03,0.03); }
     p+=fam+perf;
     if(me.g===0) R.push(["n",me.m&&me.m.points>=100000?"Sem ranqueadas suas com ele nesta rota (mas tem maestria alta)":"Você não jogou ranqueada com ele nesta rota"]);
     else if(perf>=0.01) R.push(["p",`Você vai bem com ele: ${pct0(me.w/me.g)} em ${me.g} jogos`]);
     else if(perf<=-0.01) R.push(["n",`Seu resultado com ele está abaixo: ${pct0(me.w/me.g)} em ${me.g} jogos`]);
   }
-  return {n,p:clamp(p,0.3,0.7),R,lane,laneP,me};
+  return {n,p:clamp(p,0.3,0.7),pGeral,R,lane,laneP,me};
 }
+const PERS_K=40;   // partidas "imaginárias" na média geral antes de contar o seu resultado
 function rankRole(role){
   if(!resolve(st.enemy[role])){ // atualiza a penalidade típica com os campeões já avaliados
     const prof=candidates(role).map(n=>blindProfile(role,n)).filter(Boolean);
@@ -637,7 +641,8 @@ function recRow(x,i,role,opts){
   return `<div class="rec ${i===0&&!opts.off?"top":""} ${opts.off?"off":""}"><div class="rk">${opts.off?"–":i+1}</div>
     <div><div class="rn">${x.n}${tags}</div>${opts.personal||""}
     ${opts.off?"":`<div class="why">${chips.map(r=>`<span class="${r[0]}">${r[1]}</span>`).join("")}</div>`}</div>
-    <div class="sc">${opts.off?"":chanceCell(x.p)+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
+    <div class="sc">${opts.off?"":chanceCell(x.p,opts.personal&&x.pGeral!=null?"para você":"")+
+      (opts.personal&&x.pGeral!=null?`<div class="geral">geral ${pct(x.pGeral)}</div>`:"")+`<button class="btn" data-pv="${x.n}">Build</button>`}</div></div>`;
 }
 function renderRecs(){
   const role=st.role; document.getElementById("recTitle").textContent=`Recomendações · ${RLABEL[role]}`;

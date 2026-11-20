@@ -196,5 +196,14 @@ await test("patch recém-saído: sem falso 'Seguro às cegas' e com aviso de pou
   assert(!strip(els.banner.innerHTML).includes("poucas partidas"));
 });
 
+await test("pool: 1 vitória não põe o campeão acima do que a média geral justifica", async () => {
+  draft("adc"); await settle();
+  __T.setAcct({ name: "X", games: [...g("Kog'Maw", "adc", 1, 1), ...g("Jinx", "adc", 30, 21)], mastery: [], owned: ["Kog'Maw", "Jinx"] });
+  const um = __T.chanceOf("adc", "Kog'Maw", true), muitos = __T.chanceOf("adc", "Jinx", true);
+  assert(um.p <= um.pGeral + 0.002, `1 jogo: ${um.pGeral} → ${um.p}`);
+  assert(muitos.p >= muitos.pGeral + 0.02, `30 jogos a 70%: ${muitos.pGeral} → ${muitos.p}`);
+  __T.setAcct(null);
+});
+
 console.log(`\n${passed} ok, ${failed} falharam`);
 process.exit(failed ? 1 : 0);
