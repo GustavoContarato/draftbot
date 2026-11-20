@@ -505,9 +505,27 @@ class RunasEIcones(unittest.TestCase):
             os.environ["DRAFTBOT_LCU"] = old
             DB.lcu.base = base
 
+    def test_retrato_atual_do_data_dragon(self):
+        import urllib.request
+        old = DB.DDRAGON
+        DB.DDRAGON = f"http://127.0.0.1:{LCU.port}"
+        DB.icons.dd = {"t": 0, "v": None, "map": {}}
+        try:
+            base = f"http://127.0.0.1:{SRV.server_address[1]}"
+            for n in ("Wukong", "Kog'Maw", "62"):
+                with urllib.request.urlopen(f"{base}/api/icon?k=champ&id={urllib.parse.quote(n)}", timeout=5) as r:
+                    body = r.read()
+                self.assertTrue(body.startswith(b"\x89PNG-ddragon"), body[:40])
+            self.assertIn(b"MonkeyKing", urllib.request.urlopen(f"{base}/api/icon?k=champ&id=Wukong", timeout=5).read())
+        finally:
+            DB.DDRAGON = old
+            DB.icons.dd = {"t": 0, "v": None, "map": {}}
+
     def test_icones(self):
         import urllib.request
         DB.icons.meta.clear()
+        DB.DDRAGON = "http://127.0.0.1:1"            # Data Dragon fora do ar: usa o cliente
+        DB.icons.dd = {"t": 0, "v": None, "map": {}}
         base = f"http://127.0.0.1:{SRV.server_address[1]}"
         for k, i in (("champ", "Kog'Maw"), ("champ", "96"), ("perk", "8008")):
             with urllib.request.urlopen(f"{base}/api/icon?k={k}&id={urllib.parse.quote(i)}", timeout=5) as r:

@@ -654,7 +654,7 @@ function rankRole(role){
   return candidates(role).map(n=>chanceOf(role,n)).sort((a,b)=>b.p-a.p);
 }
 const chanceCell=(p,label)=>`<div class="chance">${pct(p)}<small>${label||"chance"}</small></div>`;
-const ICON=(k,id,cls="")=>LIVE&&id!=null&&id!==""?`<img class="ic ${cls}" src="/api/icon?k=${k}&id=${encodeURIComponent(id)}" alt="" loading="lazy" onerror="this.remove()">`:"";
+const ICON=(k,id,cls="")=>LIVE&&id!=null&&id!==""?`<img class="ic ${cls}" src="/api/icon?k=${k}&id=${encodeURIComponent(id)}&r=2" alt="" loading="lazy" onerror="this.remove()">`:"";
 function recRow(x,i,role,opts){
   const e=metaEntry(role,x.n), mine=resolve(st.ally[role])||previewChamp;
   const tags=(e?`<span class="tier ${e.tier===1?"t1":""}">T${e.tier}</span>`:"")+(mine===x.n?`<span class="tier t1">ESCOLHIDO</span>`:"")+(opts.extraTag||"");

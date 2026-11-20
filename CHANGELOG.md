@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.7.1
+- Ícones de campeões agora vêm do Data Dragon (o repositório oficial e atual da Riot): alguns retratos guardados no cliente eram de artes antigas (ex.: Ezreal). Sem internet, usa os do cliente.
+
 ## v2.7.0
 - Ícones do jogo (pequenos): campeões nas recomendações, no pool, na seleção e nos bans; runas, feitiços e itens na build. Vêm do próprio cliente do LoL; com ele fechado, da CommunityDragon. Ficam guardados no PC.
 - Mais opções de runas: além da página recomendada (a do confronto ou a mais usada), aparecem a outra página da OP.GG e as páginas que o próprio cliente do LoL sugere para o campeão e a rota. A recomendada vem primeiro e marcada; clique em outra para ver e enviar.

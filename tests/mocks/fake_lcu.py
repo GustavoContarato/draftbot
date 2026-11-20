@@ -164,6 +164,19 @@ class FakeLCU:
                  "perks": [{"id": i} for i in (8008, 8009, 9104, 8017, 8473, 8451)]},
                 {"keystone": {"id": 8465, "name": "Guardião"}, "primaryPerkStyleId": 8400, "secondaryPerkStyleId": 8300,
                  "perks": [{"id": i} for i in (8465, 8463, 8473, 8451, 8304, 8345, 5008, 5008, 5001)]}])
+        if p == "/api/versions.json":
+            return h.j(["16.23.1", "16.22.1"])
+        if p == "/cdn/16.23.1/data/en_US/champion.json":
+            return h.j({"data": {a: {"id": a, "key": str(i), "name": n} for i, a, n in CHAMPS}})
+        if p.startswith("/cdn/16.23.1/img/champion/"):
+            self.icon_calls.append(p)
+            d = b"\x89PNG-ddragon " + p.encode()
+            h.send_response(200)
+            h.send_header("Content-Type", "image/png")
+            h.send_header("Content-Length", str(len(d)))
+            h.end_headers()
+            h.wfile.write(d)
+            return
         if p == "/lol-game-data/assets/v1/perks.json":
             return h.j([{"id": i, "iconPath": f"/lol-game-data/assets/v1/perk-images/Styles/Runa{i}.png"} for i in PERKS])
         if p.startswith("/lol-game-data/assets/") and p.endswith(".png"):

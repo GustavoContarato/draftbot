@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.7.0"
+VERSION = "2.7.1"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -599,6 +599,7 @@ opgg = OPGG()
 #  ÍCONES (do cliente do LoL; com ele fechado, da CommunityDragon)
 # =====================================================================
 CDRAGON = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/"
+DDRAGON = os.environ.get("DRAFTBOT_DDRAGON", "https://ddragon.leagueoflegends.com")   # retratos atuais dos campeões
 ICON_DIR = os.path.join(DATA_DIR, "icones")
 
 
@@ -608,7 +609,55 @@ class Icons:
 
     def __init__(self):
         self.meta = {}
+        self.dd = {"t": 0, "v": None, "map": {}}
         self.lock = threading.Lock()
+
+    @staticmethod
+    def _web(url, timeout=10):
+        req = urllib.request.Request(url, headers={"User-Agent": f"DraftBot/{VERSION}"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read()
+
+    def _ddragon(self):
+        """Versão atual do Data Dragon e nome → id de arquivo dos campeões (ex.: Wukong → MonkeyKing)."""
+        with self.lock:
+            if self.dd["v"] and time.time() - self.dd["t"] < 6 * 3600:
+                return self.dd
+            if time.time() - self.dd.get("fail", 0) < 600:      # fora do ar há pouco: não insiste a cada ícone
+                raise LookupError("Data Dragon indisponível")
+        try:
+            v = json.loads(self._web(DDRAGON + "/api/versions.json", 6).decode("utf-8"))[0]
+            data = json.loads(self._web(f"{DDRAGON}/cdn/{v}/data/en_US/champion.json").decode("utf-8")).get("data") or {}
+        except Exception:
+            with self.lock:
+                self.dd["fail"] = time.time()
+            raise
+        m = {}
+        for c in data.values():
+            for k in (c.get("id"), c.get("name"), c.get("key")):
+                if k:
+                    m[champ_key(str(k)).replace("_", "")] = c["id"]
+        with self.lock:
+            self.dd = {"t": time.time(), "v": v, "map": m}
+            return self.dd
+
+    def _champ_ddragon(self, ident):
+        dd = self._ddragon()
+        cid = dd["map"].get(champ_key(str(ident)).replace("_", ""))
+        if not cid:
+            raise LookupError("campeão fora do Data Dragon")
+        os.makedirs(ICON_DIR, exist_ok=True)
+        f = os.path.join(ICON_DIR, f"dd-{dd['v']}-{cid}.png")
+        try:
+            with open(f, "rb") as h:
+                return h.read(), cid + ".png"
+        except OSError:
+            pass
+        data = self._web(f"{DDRAGON}/cdn/{dd['v']}/img/champion/{cid}.png")
+        with open(f + ".tmp", "wb") as h:
+            h.write(data)
+        os.replace(f + ".tmp", f)
+        return data, cid + ".png"
 
     def _get(self, asset):
         """asset = caminho depois de /lol-game-data/assets/. Tenta o cliente, depois a CommunityDragon."""
@@ -656,6 +705,12 @@ class Icons:
     def get(self, kind, ident):
         if kind not in self.META:
             raise ValueError("tipo de ícone inválido")
+        if kind == "champ":
+            # o retrato que o cliente guarda às vezes é a arte antiga; o Data Dragon tem a atual
+            try:
+                return self._champ_ddragon(ident)
+            except Exception:
+                pass
         key = str(ident) if kind != "champ" or str(ident).isdigit() else champ_key(ident).replace("_", "")
         path = self._meta(kind).get(key) or ""
         if kind == "champ" and not path and str(ident).isdigit():
