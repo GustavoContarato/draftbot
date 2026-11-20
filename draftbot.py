@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.8.0"
+VERSION = "2.8.1"
 PORT = int(os.environ.get("DRAFTBOT_PORT", "8765"))
 # Rodando como executável (Nuitka ou PyInstaller) ou como script Python
 FROZEN = bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
@@ -850,6 +850,7 @@ class RiotService:
             with self.lock:
                 self.col = col
                 self.status = {"state": "coletando", "error": ""}
+                self.started = (time.time(), col.stats.get("matches", 0))
             last_save = time.time()
             while not stop.is_set():
                 try:
@@ -940,6 +941,9 @@ class RiotService:
                    "matches": c.get("matches", 0),
                    "local": (self.col.stats.get("matches", 0) if self.col else 0),
                    "remote": (self.remote or {}).get("matches", 0)})
+        t0, m0 = getattr(self, "started", (0, 0))
+        if self.col and t0 and time.time() - t0 > 300:
+            st["perHour"] = round((self.col.stats.get("matches", 0) - m0) * 3600 / (time.time() - t0))
         return st
 
     def name_of(self, display):

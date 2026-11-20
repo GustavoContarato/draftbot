@@ -1,5 +1,8 @@
 # Mudanças
 
+## v2.8.1
+- O contador da coleta da Riot mostra o número exato de partidas e quantas entram por hora (antes arredondava para "1,8 mil" e parecia parado).
+
 ## v2.8.0
 - Dados Mestre+ próprios pela API oficial da Riot (opcional, com a sua chave gratuita): o DraftBot junta partidas ranqueadas de jogadores Mestre+ do patch e mostra a taxa de vitória de cada runa, uma página de runas "Mestre+ do patch", as builds de itens em ordem, feitiços, e o recorte da situação: contra o seu oponente de rota e itens que ganham mais contra time de dano mágico ou físico. Com dados suficientes (200+ partidas do campeão), a página recomendada passa a ser a melhor desses dados.
 - A coleta continua de onde parou a cada vez que o DraftBot abre. Também pode rodar todo dia no GitHub (com a chave pessoal da Riot), e o DraftBot de todo mundo baixa e soma esses dados, sem precisar de chave.
