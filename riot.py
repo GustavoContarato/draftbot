@@ -25,6 +25,7 @@ POS = {"TOP": "top", "JUNGLE": "jungle", "MIDDLE": "mid", "BOTTOM": "adc", "UTIL
 QUEUE = 420                     # ranqueada solo/duo
 SEED_TIERS = ("challengerleagues", "grandmasterleagues", "masterleagues")
 STATS_VERSION = 1
+TRINKETS = {3340, 3363, 3364, 3330, 3513}   # sentinelas/lentes: não contam como item inicial
 
 
 class RiotError(Exception):
@@ -258,7 +259,7 @@ def add_match(stats, match, timeline, items):
         _inc(c.setdefault("skills", {}), "".join("QWE"[s - 1] for s in order[:3]), win)
         # itens
         bl = sorted(buys.get(pid) or [])
-        start = sorted({it for t, it in bl if t <= 60000 and it})
+        start = sorted({it for t, it in bl if t <= 60000 and it and it not in TRINKETS})
         if start:
             _inc(c.setdefault("start", {}), _pages_key(start), win)
         core, boots, seen = [], None, set()
@@ -348,8 +349,16 @@ def summary(stats, champ_id, pos, opp_id=None, enemy_comp=None):
         pages.append(dict(row, primary=int(prim), secondary=int(sec), ids=[int(x) for x in ids.split(",")]))
     out["pages"] = pages
     out["slots"] = {k: {r["key"]: r for r in _top(v, limit=12, prior=base)} for k, v in (c.get("slots") or {}).items()}
-    for k in ("spells", "skills", "start", "boots", "core2", "core3"):
+    start = {}
+    for k, v in (c.get("start") or {}).items():           # dados antigos: tira a sentinela do conjunto inicial
+        kk = ",".join(x for x in k.split(",") if x and int(x) not in TRINKETS)
+        if kk:
+            e = start.setdefault(kk, [0, 0])
+            e[0] += v[0]
+            e[1] += v[1]
+    for k in ("spells", "skills", "boots", "core2", "core3"):
         out[k] = _top(c.get(k), minimum=3, limit=5, prior=base)
+    out["start"] = _top(start, minimum=3, limit=5, prior=base)
     items = c.get("items") or {}
     out["items"] = _top(items, minimum=5, limit=15, prior=base)
     sit = []
